@@ -1,3 +1,4 @@
+pub mod decoder;
 pub mod parser;
 
 /// Returns the current LinkSleuth engine version.
