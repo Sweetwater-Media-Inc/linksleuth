@@ -35,6 +35,13 @@ fn main() {
                         println!("  Decoding error: {error:?}");
                     }
                 }
+
+                if let Some(destination) = &parameter.destination {
+                    println!("  Embedded URL: {}", destination.url);
+                    println!("  Embedded hostname: {}", destination.hostname);
+                    println!("  Decoding passes: {}", destination.decoding_passes);
+                    println!("  Note: Potential destination only; no redirect verified.");
+                }
             }
         }
         Err(error) => {

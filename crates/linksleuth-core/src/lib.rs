@@ -1,5 +1,6 @@
 pub mod analysis;
 pub mod decoder;
+pub mod destinations;
 pub mod parser;
 
 /// Returns the current LinkSleuth engine version.

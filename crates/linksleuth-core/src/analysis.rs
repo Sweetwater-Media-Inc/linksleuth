@@ -1,10 +1,12 @@
 use crate::decoder::{DecodeError, DecodingResult, decode_percent};
+use crate::destinations::{EmbeddedDestination, discover_destination};
 use crate::parser::{ParsedUrl, UrlError, parse_url};
 
 #[derive(Debug)]
 pub struct ParameterAnalysis {
     pub name: String,
     pub decoding: Result<DecodingResult, DecodeError>,
+    pub destination: Option<EmbeddedDestination>,
 }
 
 #[derive(Debug)]
@@ -19,9 +21,21 @@ pub fn analyze_url(input: &str) -> Result<AnalysisReport, UrlError> {
     let parameters = url
         .query_parameters
         .iter()
-        .map(|parameter| ParameterAnalysis {
-            name: parameter.name.clone(),
-            decoding: decode_percent(&parameter.raw_value),
+        .map(|parameter| {
+            let decoding = decode_percent(&parameter.raw_value);
+
+            let destination = match &decoding {
+                Ok(result) => {
+                    discover_destination(&result.decoded, &parameter.name, result.steps.len())
+                }
+                Err(_) => None,
+            };
+
+            ParameterAnalysis {
+                name: parameter.name.clone(),
+                decoding,
+                destination,
+            }
         })
         .collect();
 
@@ -52,5 +66,16 @@ mod tests {
         assert_eq!(report.parameters.len(), 2);
         assert!(report.parameters[0].decoding.is_err());
         assert!(report.parameters[1].decoding.is_ok());
+    }
+
+    #[test]
+    fn discovers_embedded_destination() {
+        let report =
+            analyze_url("https://example.com/?target=https%253A%252F%252Fother.example").unwrap();
+
+        let destination = report.parameters[0].destination.as_ref().unwrap();
+
+        assert_eq!(destination.hostname, "other.example");
+        assert_eq!(destination.decoding_passes, 2);
     }
 }
