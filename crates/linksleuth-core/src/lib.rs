@@ -1,3 +1,5 @@
+pub mod parser;
+
 /// Returns the current LinkSleuth engine version.
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
