@@ -15,6 +15,7 @@ pub struct DecodingResult {
     pub original: String,
     pub decoded: String,
     pub steps: Vec<DecodingStep>,
+    pub status: DecodingStatus,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,6 +23,12 @@ pub enum DecodeError {
     InvalidPercentEncoding,
     InvalidUtf8,
     InputTooLong,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DecodingStatus {
+    Complete,
+    PassLimitReached,
 }
 
 const MAX_INPUT_LENGTH: usize = 16 * 1024;
@@ -51,10 +58,17 @@ pub fn decode_percent(input: &str) -> Result<DecodingResult, DecodeError> {
         current = decoded;
     }
 
+    let status = if contains_percent_encoding(&current) {
+        DecodingStatus::PassLimitReached
+    } else {
+        DecodingStatus::Complete
+    };
+
     Ok(DecodingResult {
         original: input.to_string(),
         decoded: current,
         steps,
+        status,
     })
 }
 
@@ -82,6 +96,12 @@ fn decode_once(input: &str) -> Result<String, DecodeError> {
     }
 
     String::from_utf8(output).map_err(|_| DecodeError::InvalidUtf8)
+}
+
+fn contains_percent_encoding(input: &str) -> bool {
+    input.as_bytes().windows(3).any(|window| {
+        window[0] == b'%' && hex_value(window[1]).is_some() && hex_value(window[2]).is_some()
+    })
 }
 
 fn hex_value(byte: u8) -> Option<u8> {
@@ -157,5 +177,19 @@ mod tests {
         let input = "a".repeat(20_000);
 
         assert_eq!(decode_percent(&input), Err(DecodeError::InputTooLong));
+    }
+
+    #[test]
+    fn reports_complete_decoding() {
+        let result = decode_percent("https%3A%2F%2Fexample.com").unwrap();
+
+        assert_eq!(result.status, DecodingStatus::Complete);
+    }
+
+    #[test]
+    fn reports_pass_limit_reached() {
+        let result = decode_percent("%2525252541").unwrap();
+
+        assert_eq!(result.status, DecodingStatus::PassLimitReached);
     }
 }

@@ -1,4 +1,4 @@
-use linksleuth_core::parser::parse_url;
+use linksleuth_core::analysis::analyze_url;
 
 fn main() {
     let input = match std::env::args().nth(1) {
@@ -9,19 +9,32 @@ fn main() {
         }
     };
 
-    match parse_url(&input) {
+    match analyze_url(&input) {
         Ok(report) => {
             println!("LinkSleuth URL Analysis");
             println!("-----------------------");
-            println!("Scheme:   {}", report.scheme);
-            println!("Hostname: {}", report.hostname);
-            println!("Port:     {:?}", report.port);
-            println!("Path:     {}", report.path);
-            println!("Fragment: {:?}", report.fragment);
+            println!("Hostname: {}", report.url.hostname);
+            println!("Path:     {}", report.url.path);
 
-            println!("\nQuery Parameters:");
-            for parameter in &report.query_parameters {
-                println!("  {} = {}", parameter.name, parameter.value);
+            for parameter in &report.parameters {
+                println!("\nParameter: {}", parameter.name);
+
+                match &parameter.decoding {
+                    Ok(result) => {
+                        if result.steps.is_empty() {
+                            println!("  No percent encoding detected");
+                        }
+
+                        for (index, step) in result.steps.iter().enumerate() {
+                            println!("  Pass {}: {}", index + 1, step.output);
+                        }
+
+                        println!("  Status: {:?}", result.status);
+                    }
+                    Err(error) => {
+                        println!("  Decoding error: {error:?}");
+                    }
+                }
             }
         }
         Err(error) => {
