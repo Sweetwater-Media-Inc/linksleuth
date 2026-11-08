@@ -13,6 +13,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Passive discovery of complete HTTP/HTTPS URLs embedded in query parameter values.
 - Automated tests for parsing, decoding, integration, and destination discovery.
 - Regression tests for ambiguous query encoding, repeated parameter names, and empty or flag-style query values (Milestone 6.2).
+- Regression tests confirming that original URLs are retained alongside normalized interpretations, including encoded dot-segments and default HTTPS ports.
 
 ### Changed
 - Query parameter parsing now records the presence of a literal `=` separator, preserving the difference between `flag` and `empty=` without confusing encoded `%3D` with a separator.
