@@ -23,8 +23,12 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Initial `reporting` module exposing `ShareableReport` and `create_shareable_report()`, with hostname redacted and aggregate query-parameter, normalization-finding, and candidate-destination counts.
 - Three reporting tests covering sensitive-value exclusion from summary and `Debug` output, and preservation of original analysis evidence.
 - CLI `--shareable` option to present a privacy-reduced report using the reusable core reporting module; three new CLI integration tests cover shareable output, unchanged detailed mode, and non-echoing argument errors.
+- Milestone 6.10: typed `ShareableFindingKind`/`ShareableFinding` categories for normalization, candidate embedded destinations, malformed percent encoding, and pass limits, using fixed titles and explanations.
+- `ShareableReportOptions` and `create_shareable_report_with_options()` for explicit hostname disclosure while preserving the safe default API.
+- Expanded CLI tests for exact privacy-reduced output, no URL-derived evidence in shareable stdout/stderr, hostname opt-in, invalid arguments, and unchanged detailed output.
 
 ### Changed
+- Milestone 6.10: shareable CLI output now renders structured observations; the explicit `--shareable --include-hostname` combination can reveal the normalized hostname. Diagnostic `Debug` formatting still masks it. CLI analysis errors use fixed messages rather than echoing URL input.
 - Clarified CLI percent-decoding wording: no successfully decoded sequences, no further valid sequences detected, and pass-limit conditions are shown separately from malformed-sequence observations.
 - The CLI displays human-readable normalization finding titles and malformed percent-sequence observations with decoding pass and byte offset.
 - The CLI now displays structured normalization findings, original and normalized paths, and cautious explanations when supported URL path transformations are detected.
@@ -36,6 +40,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 
 ### Documentation
 - Project README, changelog, and roadmap.
+- Repository-wide `AGENTS.md` plus `docs/ARCHITECTURE.md`, `docs/SECURITY.md`, and `docs/DEVELOPMENT.md` to preserve engineering constraints and review practices.
 
 ## Releases
 
