@@ -1,5 +1,6 @@
 use crate::decoder::{DecodeError, DecodingResult, decode_percent};
 use crate::destinations::{EmbeddedDestination, discover_destination};
+use crate::normalization::{NormalizationFinding, analyze_normalization};
 use crate::parser::{ParsedUrl, UrlError, parse_url};
 
 #[derive(Debug)]
@@ -13,10 +14,12 @@ pub struct ParameterAnalysis {
 pub struct AnalysisReport {
     pub url: ParsedUrl,
     pub parameters: Vec<ParameterAnalysis>,
+    pub normalization_findings: Vec<NormalizationFinding>,
 }
 
 pub fn analyze_url(input: &str) -> Result<AnalysisReport, UrlError> {
     let url = parse_url(input)?;
+    let normalization_findings = analyze_normalization(&url);
 
     let parameters = url
         .query_parameters
@@ -39,7 +42,11 @@ pub fn analyze_url(input: &str) -> Result<AnalysisReport, UrlError> {
         })
         .collect();
 
-    Ok(AnalysisReport { url, parameters })
+    Ok(AnalysisReport {
+        url,
+        parameters,
+        normalization_findings,
+    })
 }
 
 #[cfg(test)]
@@ -85,5 +92,39 @@ mod tests {
 
         assert_eq!(destination.hostname, "other.example");
         assert_eq!(destination.decoding_passes, 2);
+    }
+
+    #[test]
+    fn includes_normalization_findings_in_report() {
+        let report = analyze_url(
+            "https://example.com/public/%2e%2e/admin?target=https%3A%2F%2Fother.example",
+        )
+        .unwrap();
+
+        assert_eq!(report.normalization_findings.len(), 1);
+
+        let finding = &report.normalization_findings[0];
+
+        assert_eq!(
+            finding.kind,
+            crate::normalization::NormalizationKind::EncodedDotSegment
+        );
+        assert_eq!(finding.original_path, "/public/%2e%2e/admin");
+        assert_eq!(finding.normalized_path, "/admin");
+
+        // Normalization analysis must not interfere with query analysis.
+        assert_eq!(report.parameters.len(), 1);
+        assert_eq!(
+            report.parameters[0].destination.as_ref().unwrap().hostname,
+            "other.example"
+        );
+    }
+
+    #[test]
+    fn returns_empty_normalization_findings_for_ordinary_url() {
+        let report = analyze_url("https://example.com/products?category=books").unwrap();
+
+        assert!(report.normalization_findings.is_empty());
+        assert_eq!(report.parameters.len(), 1);
     }
 }
