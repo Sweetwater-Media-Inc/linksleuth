@@ -12,6 +12,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Per-parameter decoding results and error isolation.
 - Passive discovery of complete HTTP/HTTPS URLs embedded in query parameter values.
 - Automated tests for parsing, decoding, integration, and destination discovery.
+- Regression tests for ambiguous query encoding, repeated parameter names, and empty or flag-style query values (Milestone 6.2).
 
 ### Changed
 - Percent decoding now preserves malformed or literal percent sequences and continues decoding valid sequences.
