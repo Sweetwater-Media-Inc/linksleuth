@@ -15,6 +15,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Regression tests for ambiguous query encoding, repeated parameter names, and empty or flag-style query values (Milestone 6.2).
 
 ### Changed
+- Query parameter parsing now records the presence of a literal `=` separator, preserving the difference between `flag` and `empty=` without confusing encoded `%3D` with a separator.
 - Percent decoding now preserves malformed or literal percent sequences and continues decoding valid sequences.
 - Decoding warnings include their decoding pass and byte offset for evidence provenance.
 - Tests cover literal percent signs, mixed valid/malformed input, and warnings from later decoding passes.
