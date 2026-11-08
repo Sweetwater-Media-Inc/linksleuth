@@ -207,4 +207,27 @@ mod tests {
         assert!(parsed.query_parameters[3].has_equals);
         assert_eq!(parsed.query_parameters[3].value, "0");
     }
+
+    #[test]
+    fn preserves_original_url_alongside_normalized_url() {
+        let input = "https://EXAMPLE.com:443/a/../admin";
+
+        let parsed = parse_url(input).unwrap();
+
+        assert_eq!(parsed.original, input);
+        assert_eq!(parsed.normalized, "https://example.com/admin");
+        assert_eq!(parsed.hostname, "example.com");
+        assert_eq!(parsed.path, "/admin");
+    }
+
+    #[test]
+    fn preserves_encoded_dot_segments_in_original_url() {
+        let input = "https://example.com/public/%2e%2e/admin";
+
+        let parsed = parse_url(input).unwrap();
+
+        assert_eq!(parsed.original, input);
+        assert_eq!(parsed.normalized, "https://example.com/admin");
+        assert_eq!(parsed.path, "/admin");
+    }
 }
