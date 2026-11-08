@@ -21,6 +21,7 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Add tests for literal percent signs, malformed sequences, and UTF-8 decoding.
 - [x] Record pass-aware warnings with byte offsets for each decoding attempt.
 - [x] Add regression tests for empty values, repeated parameter names, and ambiguous encoded separators.
+- [x] Preserve the presence of a literal equals sign for each query parameter (`flag` versus `empty=`).
 - [ ] Add additional Unicode and unusual query-syntax edge cases.
 - [x] Verify distinct raw and form-decoded values for `+`, `%20`, `%2B`, `%26`, and `%3D`.
 - [ ] Document percent decoding versus form-style `+` decoding throughout the analysis API.
