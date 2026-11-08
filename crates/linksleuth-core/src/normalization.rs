@@ -45,13 +45,19 @@ pub fn analyze_normalization(parsed: &ParsedUrl) -> Vec<NormalizationFinding> {
 fn extract_original_path(input: &str) -> Option<&str> {
     let (_, remainder) = input.split_once("://")?;
 
-    // HTTP/HTTPS URL parsers can treat backslashes as path
-    // separators, but we preserve the original characters.
+    // Avoid inferring path evidence from ambiguous scheme separators.
+    if remainder.starts_with('/') || remainder.starts_with('\\') {
+        return None;
+    }
+
+    // Preserve original separators while recognizing both
+    // forward slashes and backslashes in HTTP/HTTPS URLs.
     let path_start = remainder.find(['/', '\\', '?', '#']);
 
     match path_start {
         Some(index) if matches!(remainder.as_bytes()[index], b'/' | b'\\') => {
             let path_and_more = &remainder[index..];
+
             let path_end = path_and_more
                 .find(['?', '#'])
                 .unwrap_or(path_and_more.len());
@@ -159,5 +165,55 @@ mod tests {
         let findings = analyze_normalization(&parsed);
 
         assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn handles_ipv6_authority_with_port() {
+        let parsed = parse_url("https://[2001:db8::1]:8443/public/%2e%2e/admin").unwrap();
+
+        let findings = analyze_normalization(&parsed);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].original_path, "/public/%2e%2e/admin");
+        assert_eq!(findings[0].normalized_path, "/admin");
+    }
+
+    #[test]
+    fn handles_encoded_credentials_in_authority() {
+        let parsed =
+            parse_url("https://user%2Fname:pass%40word@example.com/public/%2e%2e/admin").unwrap();
+
+        let findings = analyze_normalization(&parsed);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].original_path, "/public/%2e%2e/admin");
+        assert_eq!(findings[0].normalized_path, "/admin");
+    }
+
+    #[test]
+    fn handles_backslash_after_port() {
+        let parsed = parse_url(r"https://example.com:8443\public\%2e%2e\admin").unwrap();
+
+        let findings = analyze_normalization(&parsed);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].original_path, r"\public\%2e%2e\admin");
+        assert_eq!(findings[0].normalized_path, "/admin");
+    }
+
+    #[test]
+    fn avoids_findings_for_ambiguous_scheme_separators() {
+        let input = "https:////example.com/public/%2e%2e/admin";
+        let parsed = parse_url(input).unwrap();
+
+        assert_eq!(parsed.original, input);
+        assert_eq!(parsed.path, "/admin");
+
+        let findings = analyze_normalization(&parsed);
+
+        assert!(
+            findings.is_empty(),
+            "Ambiguous scheme separators should not produce a normalization finding"
+        );
     }
 }
