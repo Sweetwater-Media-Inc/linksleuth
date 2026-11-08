@@ -1,4 +1,5 @@
 use linksleuth_core::analysis::analyze_url;
+use linksleuth_core::decoder::DecodingStatus;
 
 fn main() {
     let input = match std::env::args().nth(1) {
@@ -34,14 +35,24 @@ fn main() {
                 match &parameter.decoding {
                     Ok(result) => {
                         if result.steps.is_empty() {
-                            println!("  No percent encoding detected");
+                            println!("  No valid percent-encoded sequences decoded");
                         }
 
                         for (index, step) in result.steps.iter().enumerate() {
                             println!("  Pass {}: {}", index + 1, step.output);
                         }
 
-                        println!("  Status: {:?}", result.status);
+                        match result.status {
+                            DecodingStatus::Complete => {
+                                println!("  Percent decoding: No further valid sequences detected");
+                            }
+                            DecodingStatus::PassLimitReached => {
+                                println!(
+                                    "  Percent decoding: Pass limit reached; additional encoded sequences remain"
+                                );
+                            }
+                        }
+
                         for warning in &result.warnings {
                             match warning {
                                 linksleuth_core::decoder::DecodingWarning::MalformedPercentEncoding {
