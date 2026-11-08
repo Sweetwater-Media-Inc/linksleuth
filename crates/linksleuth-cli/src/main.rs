@@ -1,23 +1,42 @@
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::decoder::DecodingStatus;
-use linksleuth_core::reporting::create_shareable_report;
+use linksleuth_core::parser::UrlError;
+use linksleuth_core::reporting::{
+    ShareableReportOptions, create_shareable_report, create_shareable_report_with_options,
+};
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    let (shareable, input) = match args.as_slice() {
-        [url] if url != "--shareable" => (false, url.as_str()),
-        [flag, url] if flag == "--shareable" => (true, url.as_str()),
+    let (shareable_options, input) = match args.as_slice() {
+        [url] if !url.starts_with("--") => (None, url.as_str()),
+        [flag, url] if flag == "--shareable" && !url.starts_with("--") => {
+            (Some(ShareableReportOptions::default()), url.as_str())
+        }
+        [shareable, include_hostname, url]
+            if shareable == "--shareable"
+                && include_hostname == "--include-hostname"
+                && !url.starts_with("--") =>
+        {
+            (
+                Some(ShareableReportOptions::new().with_hostname()),
+                url.as_str(),
+            )
+        }
         _ => {
-            eprintln!("Usage: linksleuth-cli [--shareable] <URL>");
+            eprintln!("Usage: linksleuth-cli [--shareable [--include-hostname]] <URL>");
             std::process::exit(2);
         }
     };
 
     match analyze_url(input) {
         Ok(report) => {
-            if shareable {
-                let shared = create_shareable_report(&report);
+            if let Some(options) = shareable_options {
+                let shared = if options.include_hostname {
+                    create_shareable_report_with_options(&report, options)
+                } else {
+                    create_shareable_report(&report)
+                };
 
                 println!("LinkSleuth Shareable Summary");
                 println!("----------------------------");
@@ -31,7 +50,20 @@ fn main() {
                     "Potential embedded destinations: {}",
                     shared.embedded_destination_count
                 );
-                println!("Note: Privacy-reduced summary; metadata may still be sensitive.");
+
+                if !shared.findings.is_empty() {
+                    println!("\nObservations");
+
+                    for (index, finding) in shared.findings.iter().enumerate() {
+                        println!("\n{}. {}", index + 1, finding.title());
+
+                        for line in finding.explanation_lines() {
+                            println!("   {line}");
+                        }
+                    }
+                }
+
+                println!("\nNote: This is a privacy-reduced summary, not a security verdict.");
 
                 return;
             }
@@ -106,7 +138,13 @@ fn main() {
             }
         }
         Err(error) => {
-            eprintln!("Unable to analyze URL: {error:?}");
+            let reason = match error {
+                UrlError::TooLong => "the URL exceeds the supported length",
+                UrlError::Invalid(_) => "the URL is invalid",
+                UrlError::UnsupportedScheme => "the URL scheme is not supported",
+                UrlError::MissingHostname => "the URL has no hostname",
+            };
+            eprintln!("Unable to analyze URL: {reason}.");
             std::process::exit(1);
         }
     }
