@@ -32,9 +32,10 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Recognize forward and backslash separators in supported original-path evidence, while excluding query strings and fragments from these findings.
 - Conservatively omit normalization findings for unsupported ambiguous scheme separators rather than asserting uncertain path evidence.
 - Inspect URLs using a command-line tool that displays normalization findings alongside decoding results and possible embedded destinations.
-- Run automated tests covering parsing, decoding, discovery, and actual CLI output (normalization titles, decoding warnings, and precise decoding status wording).
+- Generate a minimal privacy-reduced `ShareableReport` in the core library, withholding the hostname, URL path, query values, and fragments while retaining aggregate finding counts.
+- Run automated tests covering parsing, decoding, discovery, privacy-reduced reporting, and actual CLI output (normalization titles, decoding warnings, and precise decoding status wording).
 
-**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; raw-path extraction needs further edge-case hardening, and privacy-safe shareable reporting is not yet implemented. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
+**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; raw-path extraction needs further edge-case hardening, and privacy-reduced reporting is currently a minimal library-only summary, not a fully audited or anonymous export. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
 
 ## Build and test
 
@@ -74,7 +75,7 @@ Read [ROADMAP.md](ROADMAP.md) for priorities and [CHANGELOG.md](CHANGELOG.md) fo
 
 ## Security and privacy notes
 
-A submitted URL may contain authentication tokens, email addresses, or private document identifiers. Avoid posting sensitive URLs publicly, and do not share unsanitized CLI output. Privacy-safe shareable reports are planned; they are not yet implemented.
+A submitted URL may contain authentication tokens, email addresses, or private document identifiers. Avoid posting sensitive URLs publicly, and do not share unsanitized CLI output. A preliminary `ShareableReport` is available in the core library, with the hostname replaced by `[REDACTED]` and only aggregate counts exposed. It is not yet integrated into the CLI, and further privacy review and configurable disclosure controls are planned.
 
 Passive URL inspection can reveal syntax and embedded destinations, but **cannot guarantee a link is safe**. Continue using normal browser and email security protections.
 
