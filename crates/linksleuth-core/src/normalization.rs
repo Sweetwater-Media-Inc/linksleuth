@@ -20,7 +20,7 @@ pub fn analyze_normalization(parsed: &ParsedUrl) -> Vec<NormalizationFinding> {
         return findings;
     };
 
-    let contains_encoded_dot_segment = original_path.split('/').any(|segment| {
+    let contains_encoded_dot_segment = original_path.split(['/', '\\']).any(|segment| {
         let lower = segment.to_ascii_lowercase();
 
         matches!(lower.as_str(), "%2e%2e" | "%2e." | ".%2e")
@@ -45,11 +45,12 @@ pub fn analyze_normalization(parsed: &ParsedUrl) -> Vec<NormalizationFinding> {
 fn extract_original_path(input: &str) -> Option<&str> {
     let (_, remainder) = input.split_once("://")?;
 
-    // Skip the authority (hostname, optional credentials and port).
-    let path_start = remainder.find(['/', '?', '#']);
+    // HTTP/HTTPS URL parsers can treat backslashes as path
+    // separators, but we preserve the original characters.
+    let path_start = remainder.find(['/', '\\', '?', '#']);
 
     match path_start {
-        Some(index) if remainder.as_bytes()[index] == b'/' => {
+        Some(index) if matches!(remainder.as_bytes()[index], b'/' | b'\\') => {
             let path_and_more = &remainder[index..];
             let path_end = path_and_more
                 .find(['?', '#'])
@@ -105,5 +106,58 @@ mod tests {
 
             assert_eq!(findings[0].normalized_path, "/admin");
         }
+    }
+
+    #[test]
+    fn handles_credentials_in_url_authority() {
+        let parsed = parse_url("https://user:password@example.com/public/%2e%2e/admin").unwrap();
+
+        let findings = analyze_normalization(&parsed);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].original_path, "/public/%2e%2e/admin");
+        assert_eq!(findings[0].normalized_path, "/admin");
+    }
+
+    #[test]
+    fn ignores_encoded_dot_segments_in_fragments() {
+        let parsed = parse_url("https://example.com/admin#section/%2e%2e/test").unwrap();
+
+        let findings = analyze_normalization(&parsed);
+
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn handles_query_before_fragment_without_path() {
+        let parsed =
+            parse_url("https://example.com?redirect=/public/%2e%2e/admin#section").unwrap();
+
+        let findings = analyze_normalization(&parsed);
+
+        assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn preserves_backslash_path_evidence() {
+        let input = r"https://example.com\public\%2e%2e\admin";
+
+        let parsed = parse_url(input).unwrap();
+        let findings = analyze_normalization(&parsed);
+
+        assert_eq!(parsed.path, "/admin");
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].original_path, r"\public\%2e%2e\admin");
+        assert_eq!(findings[0].normalized_path, "/admin");
+    }
+
+    #[test]
+    fn ignores_backslash_dot_segments_in_query() {
+        let parsed = parse_url(r"https://example.com/admin?note=\public\%2e%2e\admin").unwrap();
+
+        let findings = analyze_normalization(&parsed);
+
+        assert!(findings.is_empty());
     }
 }
