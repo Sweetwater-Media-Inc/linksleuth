@@ -18,9 +18,11 @@ This is a living plan, not a promise of release dates. Completed items describe 
 
 ## Next: Correctness and security hardening
 
-- [ ] Add edge-case tests for literal percent signs, malformed encodings, Unicode, empty values, and repeated parameter names.
+- [x] Add tests for literal percent signs, malformed sequences, and UTF-8 decoding.
+- [x] Record pass-aware warnings with byte offsets for each decoding attempt.
+- [ ] Add edge-case tests for empty values, repeated parameter names, and additional Unicode cases.
 - [ ] Clarify distinctions between percent decoding and form-style `+` decoding.
-- [ ] Preserve evidence provenance from exact raw input through each transformation.
+- [ ] Extend evidence provenance from exact raw input through all transformations (pass-aware warnings now implemented).
 - [ ] Refine decoding status and limitations to avoid overstating completeness.
 - [ ] Apply strict bounds to all relevant analysis stages.
 - [ ] Design privacy-safe redaction for reports and diagnostic output.
