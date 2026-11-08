@@ -1,17 +1,41 @@
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::decoder::DecodingStatus;
+use linksleuth_core::reporting::create_shareable_report;
 
 fn main() {
-    let input = match std::env::args().nth(1) {
-        Some(value) => value,
-        None => {
-            eprintln!("Usage: linksleuth-cli <URL>");
+    let args: Vec<String> = std::env::args().skip(1).collect();
+
+    let (shareable, input) = match args.as_slice() {
+        [url] if url != "--shareable" => (false, url.as_str()),
+        [flag, url] if flag == "--shareable" => (true, url.as_str()),
+        _ => {
+            eprintln!("Usage: linksleuth-cli [--shareable] <URL>");
             std::process::exit(2);
         }
     };
 
-    match analyze_url(&input) {
+    match analyze_url(input) {
         Ok(report) => {
+            if shareable {
+                let shared = create_shareable_report(&report);
+
+                println!("LinkSleuth Shareable Summary");
+                println!("----------------------------");
+                println!("Hostname: {}", shared.hostname);
+                println!("Query parameters: {}", shared.query_parameter_count);
+                println!(
+                    "Normalization findings: {}",
+                    shared.normalization_finding_count
+                );
+                println!(
+                    "Potential embedded destinations: {}",
+                    shared.embedded_destination_count
+                );
+                println!("Note: Privacy-reduced summary; metadata may still be sensitive.");
+
+                return;
+            }
+
             println!("LinkSleuth URL Analysis");
             println!("-----------------------");
             println!("Hostname: {}", report.url.hostname);
