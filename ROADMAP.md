@@ -38,7 +38,9 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [ ] Extend evidence provenance from exact raw input through all transformations (pass-aware warnings now implemented).
 - [ ] Refine decoding status and limitations to avoid overstating completeness.
 - [ ] Apply strict bounds to all relevant analysis stages.
-- [ ] Design privacy-safe redaction for reports and diagnostic output.
+- [x] Introduce a minimal privacy-reduced core report with redacted hostname and aggregate analysis counts, with tests for evidence preservation and example-sensitive-data exclusion.
+- [ ] Design configurable disclosure/redaction controls and review privacy risks from metadata; no general share-safe guarantee yet.
+- [ ] Integrate a privacy-reduced report mode into CLI output and add end-to-end tests.
 - [ ] Add CI checks for formatting, tests, and Clippy.
 
 ## Next: Expanded discovery and explainability
