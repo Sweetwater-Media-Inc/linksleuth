@@ -16,6 +16,18 @@ fn main() {
             println!("Hostname: {}", report.url.hostname);
             println!("Path:     {}", report.url.path);
 
+            if !report.normalization_findings.is_empty() {
+                println!("\nNormalization Findings");
+                println!("----------------------");
+
+                for finding in &report.normalization_findings {
+                    println!("\nFinding: {:?}", finding.kind);
+                    println!("  Original path:   {}", finding.original_path);
+                    println!("  Normalized path: {}", finding.normalized_path);
+                    println!("  Explanation:     {}", finding.explanation);
+                }
+            }
+
             for parameter in &report.parameters {
                 println!("\nParameter: {}", parameter.name);
 
