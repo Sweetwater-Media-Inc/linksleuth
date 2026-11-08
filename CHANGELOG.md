@@ -20,6 +20,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Regression tests for IPv6 authorities and ports, encoded credentials, backslashes after ports, and ambiguous scheme separators. Normalization detection now declines uncertain original-path extraction for the tested ambiguous scheme case.
 
 ### Changed
+- The CLI now displays structured normalization findings, original and normalized paths, and cautious explanations when supported URL path transformations are detected.
 - `analyze_url()` now includes structured normalization findings in `AnalysisReport` alongside existing parameter decoding and candidate destination results; integration tests cover both a detected normalization and an ordinary URL.
 - Query parameter parsing now records the presence of a literal `=` separator, preserving the difference between `flag` and `empty=` without confusing encoded `%3D` with a separator.
 - Percent decoding now preserves malformed or literal percent sequences and continues decoding valid sequences.
