@@ -40,7 +40,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [ ] Apply strict bounds to all relevant analysis stages.
 - [x] Introduce a minimal privacy-reduced core report with redacted hostname and aggregate analysis counts, with tests for evidence preservation and example-sensitive-data exclusion.
 - [ ] Design configurable disclosure/redaction controls and review privacy risks from metadata; no general share-safe guarantee yet.
-- [ ] Integrate a privacy-reduced report mode into CLI output and add end-to-end tests.
+- [x] Integrate `--shareable` privacy-reduced CLI output using the core reporting module, with end-to-end regression tests.
+- [ ] Add privacy regression tests for CLI standard error and failure paths, and evaluate command-line argument visibility.
 - [ ] Add CI checks for formatting, tests, and Clippy.
 
 ## Next: Expanded discovery and explainability
