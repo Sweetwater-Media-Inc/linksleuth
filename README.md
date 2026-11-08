@@ -27,10 +27,11 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Record the decoding-attempt number and byte offset for each warning.
 - Report whether further percent decoding may remain.
 - Identify complete HTTP/HTTPS URLs embedded in decoded query parameter values.
+- Produce preliminary structured findings for encoded parent-directory segments in original URL paths, showing original and normalized paths with an evidence-based explanation.
 - Inspect URLs using a command-line tool.
 - Run automated tests covering parsing, decoding, and discovery.
 
-**Limitations:** Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
+**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; raw-path extraction needs further edge-case hardening, and normalization findings are not yet integrated into the main analysis report or CLI. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
 
 ## Build and test
 
