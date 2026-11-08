@@ -31,10 +31,10 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Include normalization findings alongside decoded parameters and possible embedded destinations in the reusable `AnalysisReport`.
 - Recognize forward and backslash separators in supported original-path evidence, while excluding query strings and fragments from these findings.
 - Conservatively omit normalization findings for unsupported ambiguous scheme separators rather than asserting uncertain path evidence.
-- Inspect URLs using a command-line tool.
+- Inspect URLs using a command-line tool that displays normalization findings alongside decoding results and possible embedded destinations.
 - Run automated tests covering parsing, decoding, and discovery.
 
-**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; raw-path extraction needs further edge-case hardening, and normalization findings are not yet displayed by the CLI. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
+**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; raw-path extraction needs further edge-case hardening, and CLI finding labels are still developer-oriented. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
 
 ## Build and test
 
@@ -56,7 +56,7 @@ cargo run -p linksleuth-cli -- \
   "https://example.com/?target=https%253A%252F%252Fother.example"
 ```
 
-The CLI reports URL components, decoding steps, and any supported embedded URL discovery. No suspicious destination is contacted.
+The CLI reports URL components, decoding steps, potential embedded URLs, and supported normalization findings with original/normalized path evidence. No suspicious destination is contacted.
 
 ## Project structure
 
