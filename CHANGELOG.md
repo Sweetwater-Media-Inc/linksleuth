@@ -17,6 +17,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - `normalization` core module with `NormalizationKind`, `NormalizationFinding`, and `analyze_normalization` to identify encoded parent-directory segments in URL paths and retain original versus normalized path evidence.
 - Tests for mixed-case and mixed encoded-dot forms and for excluding query-only dot segments.
 - Original-path extraction tests for URL credentials, missing explicit paths, fragments, and backslashes; backslash path separators are now preserved as evidence.
+- Regression tests for IPv6 authorities and ports, encoded credentials, backslashes after ports, and ambiguous scheme separators. Normalization detection now declines uncertain original-path extraction for the tested ambiguous scheme case.
 
 ### Changed
 - Query parameter parsing now records the presence of a literal `=` separator, preserving the difference between `flag` and `empty=` without confusing encoded `%3D` with a separator.
