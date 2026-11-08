@@ -24,7 +24,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Preserve the presence of a literal equals sign for each query parameter (`flag` versus `empty=`).
 - [x] Verify original URL preservation alongside normalization of hostnames, default ports, and encoded dot-segments.
 - [x] Introduce a preliminary structured normalization finding for encoded parent-directory segments, preserving original and normalized paths and a cautious explanation.
-- [ ] Harden original-path extraction against unusual authority and delimiter syntax, then integrate normalization findings with the main analysis report and CLI.
+- [x] Add original-path extraction regression tests for credentials, query/fragment boundaries, and backslash separators.
+- [ ] Further harden original-path extraction against unusual authority syntax and integrate normalization findings with the main analysis report and CLI.
 - [ ] Add additional Unicode and unusual query-syntax edge cases.
 - [x] Verify distinct raw and form-decoded values for `+`, `%20`, `%2B`, `%26`, and `%3D`.
 - [ ] Document percent decoding versus form-style `+` decoding throughout the analysis API.
