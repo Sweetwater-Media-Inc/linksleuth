@@ -6,6 +6,7 @@ pub struct QueryParameter {
     pub raw_name: String,
     pub value: String,
     pub raw_value: String,
+    pub has_equals: bool,
 }
 
 #[derive(Debug)]
@@ -49,6 +50,7 @@ pub fn parse_url(input: &str) -> Result<ParsedUrl, UrlError> {
         .filter(|part| !part.is_empty())
         .map(|part| {
             let (raw_name, raw_value) = part.split_once('=').unwrap_or((part, ""));
+            let has_equals = part.contains('=');
 
             let decoded_name = url::form_urlencoded::parse(part.as_bytes())
                 .next()
@@ -65,6 +67,7 @@ pub fn parse_url(input: &str) -> Result<ParsedUrl, UrlError> {
                 raw_name: raw_name.to_string(),
                 value: decoded_value,
                 raw_value: raw_value.to_string(),
+                has_equals,
             }
         })
         .collect();
@@ -178,5 +181,30 @@ mod tests {
         assert_eq!(parsed.query_parameters[1].raw_value, "");
 
         assert_eq!(parsed.query_parameters[2].value, "https://example.org");
+    }
+
+    #[test]
+    fn distinguishes_flags_from_explicit_empty_values() {
+        let parsed =
+            parse_url("https://example.com/?flag&empty=&encoded%3Dname=value&count=0").unwrap();
+
+        assert_eq!(parsed.query_parameters.len(), 4);
+
+        // No equals sign in the original parameter.
+        assert!(!parsed.query_parameters[0].has_equals);
+        assert_eq!(parsed.query_parameters[0].raw_value, "");
+
+        // Explicit equals sign with an empty value.
+        assert!(parsed.query_parameters[1].has_equals);
+        assert_eq!(parsed.query_parameters[1].raw_value, "");
+
+        // An encoded equals sign in the name is not a separator.
+        assert!(parsed.query_parameters[2].has_equals);
+        assert_eq!(parsed.query_parameters[2].name, "encoded=name");
+        assert_eq!(parsed.query_parameters[2].raw_name, "encoded%3Dname");
+
+        // Ordinary name=value parameter.
+        assert!(parsed.query_parameters[3].has_equals);
+        assert_eq!(parsed.query_parameters[3].value, "0");
     }
 }
