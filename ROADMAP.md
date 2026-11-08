@@ -28,7 +28,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Test IPv6 authority syntax, encoded credentials, explicit ports, and conservatively skip ambiguous scheme-separator paths.
 - [x] Integrate normalization findings into the reusable `AnalysisReport` with regression tests.
 - [ ] Further harden original-path extraction for remaining unusual URL syntax and distinguish unsupported extraction from no finding.
-- [ ] Display normalization findings in the CLI.
+- [x] Display normalization findings with original/normalized path evidence and explanations in the CLI.
+- [ ] Improve CLI finding titles and warning presentation, and add automated CLI output tests.
 - [ ] Add additional Unicode and unusual query-syntax edge cases.
 - [x] Verify distinct raw and form-decoded values for `+`, `%20`, `%2B`, `%26`, and `%3D`.
 - [ ] Document percent decoding versus form-style `+` decoding throughout the analysis API.
