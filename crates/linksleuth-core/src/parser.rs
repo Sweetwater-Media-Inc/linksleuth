@@ -125,4 +125,58 @@ mod tests {
         assert_eq!(parameter.raw_value, "https%253A%252F%252Fother.example");
         assert_eq!(parameter.value, "https%3A%2F%2Fother.example");
     }
+
+    #[test]
+    fn preserves_ambiguous_query_encoding() {
+        let parsed = parse_url(
+            "https://example.com/?first=hello+world&second=hello%2Bworld&third=a%26b%3Dc",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.query_parameters.len(), 3);
+
+        assert_eq!(parsed.query_parameters[0].raw_value, "hello+world");
+        assert_eq!(parsed.query_parameters[0].value, "hello world");
+
+        assert_eq!(parsed.query_parameters[1].raw_value, "hello%2Bworld");
+        assert_eq!(parsed.query_parameters[1].value, "hello+world");
+
+        assert_eq!(parsed.query_parameters[2].raw_value, "a%26b%3Dc");
+        assert_eq!(parsed.query_parameters[2].value, "a&b=c");
+    }
+
+    #[test]
+    fn preserves_repeated_query_parameters() {
+        let parsed = parse_url(
+            "https://example.com/?redirect=https%3A%2F%2Fsafe.example&redirect=https%3A%2F%2Fsuspicious.example"
+        )
+        .unwrap();
+
+        assert_eq!(parsed.query_parameters.len(), 2);
+
+        assert_eq!(parsed.query_parameters[0].name, "redirect");
+        assert_eq!(parsed.query_parameters[0].value, "https://safe.example");
+
+        assert_eq!(parsed.query_parameters[1].name, "redirect");
+        assert_eq!(
+            parsed.query_parameters[1].value,
+            "https://suspicious.example"
+        );
+    }
+
+    #[test]
+    fn preserves_empty_query_parameter_values() {
+        let parsed =
+            parse_url("https://example.com/?empty=&flag&target=https%3A%2F%2Fexample.org").unwrap();
+
+        assert_eq!(parsed.query_parameters.len(), 3);
+
+        assert_eq!(parsed.query_parameters[0].raw_name, "empty");
+        assert_eq!(parsed.query_parameters[0].raw_value, "");
+
+        assert_eq!(parsed.query_parameters[1].raw_name, "flag");
+        assert_eq!(parsed.query_parameters[1].raw_value, "");
+
+        assert_eq!(parsed.query_parameters[2].value, "https://example.org");
+    }
 }
