@@ -39,9 +39,11 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [ ] Refine decoding status and limitations to avoid overstating completeness.
 - [ ] Apply strict bounds to all relevant analysis stages.
 - [x] Introduce a minimal privacy-reduced core report with redacted hostname and aggregate analysis counts, with tests for evidence preservation and example-sensitive-data exclusion.
-- [ ] Design configurable disclosure/redaction controls and review privacy risks from metadata; no general share-safe guarantee yet.
+- [x] Add safe-default `ShareableReportOptions` with explicit hostname disclosure, typed shareable finding categories, fixed explanatory text, and privacy regression tests.
+- [ ] Continue reviewing metadata disclosure risks and expand privacy controls if justified; there is no general anonymity guarantee.
 - [x] Integrate `--shareable` privacy-reduced CLI output using the core reporting module, with end-to-end regression tests.
-- [ ] Add privacy regression tests for CLI standard error and failure paths, and evaluate command-line argument visibility.
+- [x] Add privacy regression tests for CLI standard error, invalid arguments and analysis failures, and hostname opt-in.
+- [ ] Evaluate safer URL input mechanisms to reduce shell-history and process-argument exposure.
 - [ ] Add CI checks for formatting, tests, and Clippy.
 
 ## Next: Expanded discovery and explainability
@@ -50,9 +52,15 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [ ] Explore URLs nested in additional parameter structures or text, with explicit source provenance.
 - [ ] Add carefully bounded Base64 and HTML-entity analysis.
 - [ ] Distinguish observed decoded text from candidate destinations and verified redirects.
-- [ ] Create structured findings with evidence, limitations, and plain-language explanations.
+- [x] Introduce initial fixed-text, privacy-reduced structured findings for four supported observations.
+- [ ] Extend detailed structured findings and evidence provenance without compromising shareable reporting.
 - [ ] Add a regression corpus of synthetic suspicious and legitimate URLs.
 - [ ] Introduce fuzz/property-based tests and evaluate false positives.
+
+## Development documentation
+
+- [x] Add repository-level `AGENTS.md` and architecture, security, and development guidance in `docs/`.
+- [ ] Keep guidance in sync with future architectural or privacy changes.
 
 ## Future: Clue companion web interface
 
