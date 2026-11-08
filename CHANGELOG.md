@@ -20,6 +20,8 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Regression tests for IPv6 authorities and ports, encoded credentials, backslashes after ports, and ambiguous scheme separators. Normalization detection now declines uncertain original-path extraction for the tested ambiguous scheme case.
 - Two CLI integration tests that execute the binary and verify normalization finding text and decoding warning output.
 - CLI regression test distinguishing malformed percent sequences from completion of percent decoding.
+- Initial `reporting` module exposing `ShareableReport` and `create_shareable_report()`, with hostname redacted and aggregate query-parameter, normalization-finding, and candidate-destination counts.
+- Three reporting tests covering sensitive-value exclusion from summary and `Debug` output, and preservation of original analysis evidence.
 
 ### Changed
 - Clarified CLI percent-decoding wording: no successfully decoded sequences, no further valid sequences detected, and pass-limit conditions are shown separately from malformed-sequence observations.
