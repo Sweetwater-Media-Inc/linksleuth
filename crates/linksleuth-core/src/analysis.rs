@@ -60,12 +60,20 @@ mod tests {
     }
 
     #[test]
-    fn preserves_decoding_errors() {
+    fn preserves_decoding_warnings() {
         let report = analyze_url("https://example.com/?broken=%ZZ&valid=hello%20world").unwrap();
 
         assert_eq!(report.parameters.len(), 2);
-        assert!(report.parameters[0].decoding.is_err());
-        assert!(report.parameters[1].decoding.is_ok());
+
+        let broken = report.parameters[0].decoding.as_ref().unwrap();
+
+        assert_eq!(broken.decoded, "%ZZ");
+        assert_eq!(broken.warnings.len(), 1);
+
+        let valid = report.parameters[1].decoding.as_ref().unwrap();
+
+        assert_eq!(valid.decoded, "hello world");
+        assert!(valid.warnings.is_empty());
     }
 
     #[test]
