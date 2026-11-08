@@ -22,6 +22,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Record pass-aware warnings with byte offsets for each decoding attempt.
 - [x] Add regression tests for empty values, repeated parameter names, and ambiguous encoded separators.
 - [x] Preserve the presence of a literal equals sign for each query parameter (`flag` versus `empty=`).
+- [x] Verify original URL preservation alongside normalization of hostnames, default ports, and encoded dot-segments.
+- [ ] Add structured normalization observations with exact supporting evidence and careful interpretation.
 - [ ] Add additional Unicode and unusual query-syntax edge cases.
 - [x] Verify distinct raw and form-decoded values for `+`, `%20`, `%2B`, `%26`, and `%3D`.
 - [ ] Document percent decoding versus form-style `+` decoding throughout the analysis API.
