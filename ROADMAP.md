@@ -30,7 +30,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [ ] Further harden original-path extraction for remaining unusual URL syntax and distinguish unsupported extraction from no finding.
 - [x] Display normalization findings with original/normalized path evidence and explanations in the CLI.
 - [x] Improve CLI normalization titles, show pass-aware decoding warnings, and add initial automated CLI output tests.
-- [ ] Refine percent-decoding status wording and extend CLI regression coverage.
+- [x] Refine percent-decoding status wording and add a regression test for malformed encoding alongside decoding completion.
+- [ ] Expand CLI regression coverage for pass limits and mixed valid/malformed sequences.
 - [ ] Add additional Unicode and unusual query-syntax edge cases.
 - [x] Verify distinct raw and form-decoded values for `+`, `%20`, `%2B`, `%26`, and `%3D`.
 - [ ] Document percent decoding versus form-style `+` decoding throughout the analysis API.
