@@ -3,6 +3,7 @@ pub mod decoder;
 pub mod destinations;
 pub mod normalization;
 pub mod parser;
+pub mod reporting;
 
 /// Returns the current LinkSleuth engine version.
 pub fn version() -> &'static str {
