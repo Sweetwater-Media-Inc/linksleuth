@@ -21,7 +21,7 @@ fn main() {
                 println!("----------------------");
 
                 for finding in &report.normalization_findings {
-                    println!("\nFinding: {:?}", finding.kind);
+                    println!("\nFinding: {}", finding.kind.title());
                     println!("  Original path:   {}", finding.original_path);
                     println!("  Normalized path: {}", finding.normalized_path);
                     println!("  Explanation:     {}", finding.explanation);
@@ -42,6 +42,20 @@ fn main() {
                         }
 
                         println!("  Status: {:?}", result.status);
+                        for warning in &result.warnings {
+                            match warning {
+                                linksleuth_core::decoder::DecodingWarning::MalformedPercentEncoding {
+                                    pass,
+                                    offset,
+                                } => {
+                                    println!(
+                                        "  Decoding observation: Invalid percent sequence at byte offset {} during pass {}.",
+                                        offset, pass
+                                    );
+                                    println!("  Note: The original text was preserved.");
+                                }
+                            }
+                        }
                     }
                     Err(error) => {
                         println!("  Decoding error: {error:?}");

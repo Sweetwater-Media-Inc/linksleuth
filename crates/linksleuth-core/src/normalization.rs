@@ -3,6 +3,14 @@ pub enum NormalizationKind {
     EncodedDotSegment,
 }
 
+impl NormalizationKind {
+    pub fn title(&self) -> &'static str {
+        match self {
+            Self::EncodedDotSegment => "Encoded parent-directory segment",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NormalizationFinding {
     pub kind: NormalizationKind,
@@ -214,6 +222,14 @@ mod tests {
         assert!(
             findings.is_empty(),
             "Ambiguous scheme separators should not produce a normalization finding"
+        );
+    }
+
+    #[test]
+    fn normalization_kind_has_readable_title() {
+        assert_eq!(
+            NormalizationKind::EncodedDotSegment.title(),
+            "Encoded parent-directory segment"
         );
     }
 }
