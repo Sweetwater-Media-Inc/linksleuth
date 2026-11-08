@@ -22,6 +22,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - CLI regression test distinguishing malformed percent sequences from completion of percent decoding.
 - Initial `reporting` module exposing `ShareableReport` and `create_shareable_report()`, with hostname redacted and aggregate query-parameter, normalization-finding, and candidate-destination counts.
 - Three reporting tests covering sensitive-value exclusion from summary and `Debug` output, and preservation of original analysis evidence.
+- CLI `--shareable` option to present a privacy-reduced report using the reusable core reporting module; three new CLI integration tests cover shareable output, unchanged detailed mode, and non-echoing argument errors.
 
 ### Changed
 - Clarified CLI percent-decoding wording: no successfully decoded sequences, no further valid sequences detected, and pass-limit conditions are shown separately from malformed-sequence observations.
