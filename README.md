@@ -19,7 +19,9 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Parse HTTP and HTTPS URLs into scheme, hostname, path, port, query parameters, and fragment.
 - Preserve original URL input and raw query parameter values alongside decoded equivalents.
 - Decode percent encoding in up to three passes, retaining each transformation.
-- Report malformed encoding and whether further percent decoding may remain.
+- Preserve malformed percent sequences as warnings while decoding valid sequences.
+- Record the decoding-attempt number and byte offset for each warning.
+- Report whether further percent decoding may remain.
 - Identify complete HTTP/HTTPS URLs embedded in decoded query parameter values.
 - Inspect URLs using a command-line tool.
 - Run automated tests covering parsing, decoding, and discovery.
