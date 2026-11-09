@@ -61,11 +61,14 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Introduce initial fixed-text, privacy-reduced structured findings for four supported observations.
 - [x] Extend detailed candidate provenance and privacy-reduced reporting to include nested/protocol-relative findings and incomplete discovery status.
 - [ ] Expand detailed findings beyond current supported candidate and normalization categories.
-- [x] Add automated, machine-readable synthetic destination regression corpus (27 cases) for legitimate, suspicious-looking, malformed, nested, ambiguous, bounded, and privacy-sensitive cases.
-- [ ] Expand corpus with new regression cases and false-positive samples as they are identified.
+- [x] Add automated, machine-readable synthetic destination regression corpus (expanded to 42 cases in Milestone 6.14) for legitimate, suspicious-looking, malformed, nested, ambiguous, bounded, and privacy-sensitive cases.
+- [x] Expand the corpus with 15 additional benign and misleading-positive cases, and add aggregate expectation-mismatch metrics (Milestone 6.14).
+- [ ] Continue expanding the corpus as new real-world-inspired, synthetic regression cases are identified.
 - [ ] Introduce fuzz/property-based tests and evaluate false positives using the corpus and broader synthetic data.
 
 ## Development documentation
+
+- [x] Document Milestone 6.14 consumer schema, disclosure boundary, stage completeness and corpus-based quality metrics.
 
 - [x] Document bounded Base64 and HTML-reference decoding, typed coverage, provenance, limitations, and regression corpus from Milestone 6.13.
 
@@ -76,9 +79,12 @@ This is a living plan, not a promise of release dates. Completed items describe 
 
 ## Next: API stabilization and detection quality
 
-- [ ] Review public report/provenance struct evolution and define a compatibility approach for Clue and downstream Rust users.
-- [ ] Assess encoding coverage and incomplete-discovery semantics across consumers.
-- [ ] Measure false-positive behaviour and refine synthetic regression fixtures before expanding detection breadth.
+- [x] Audit public API layering and add a schema-versioned, encapsulated consumer interface while retaining legacy detailed/shareable APIs.
+- [ ] Exercise the consumer API from a separate client and consider stability policy before publishing a version-1 contract.
+- [x] Add four-stage consumer completeness with explicit coverage/reason identifiers and status scoped to supported techniques.
+- [x] Measure expected-positive/negative corpus mismatches without claiming real-world detection accuracy.
+- [ ] Add more diverse synthetic and adversarial samples to evaluate detection quality beyond the current corpus.
+- [ ] Evaluate a future WASM integration boundary and privacy-friendly Clue MVP experience.
 
 ## Future: Clue companion web interface
 
