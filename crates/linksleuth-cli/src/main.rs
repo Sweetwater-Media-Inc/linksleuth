@@ -1,5 +1,6 @@
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::decoder::DecodingStatus;
+use linksleuth_core::destinations::{DestinationReferenceKind, DestinationScheme};
 use linksleuth_core::normalization::OriginalPathAnalysis;
 use linksleuth_core::parser::UrlError;
 use linksleuth_core::reporting::{
@@ -56,6 +57,21 @@ fn main() {
                     "Potential embedded destinations: {}",
                     shared.embedded_destination_count
                 );
+                if shared.nested_destination_count > 0 {
+                    println!("Nested candidates: {}", shared.nested_destination_count);
+                }
+                if shared.protocol_relative_destination_count > 0 {
+                    println!(
+                        "Protocol-relative references: {}",
+                        shared.protocol_relative_destination_count
+                    );
+                }
+                if !shared.destination_discovery_status.is_complete() {
+                    println!("Destination discovery: incomplete");
+                    for limit in shared.destination_discovery_status.limits() {
+                        println!("  Note: {}", limit.explanation());
+                    }
+                }
 
                 if !shared.findings.is_empty() {
                     println!("\nObservations");
@@ -145,12 +161,66 @@ fn main() {
                         println!("  Decoding error: {error:?}");
                     }
                 }
+            }
 
-                if let Some(destination) = &parameter.destination {
-                    println!("  Embedded URL: {}", destination.url);
-                    println!("  Embedded hostname: {}", destination.hostname);
-                    println!("  Decoding passes: {}", destination.decoding_passes);
-                    println!("  Note: Potential destination only; no redirect verified.");
+            if !report.destination_discovery.candidates.is_empty()
+                || !report.destination_discovery.status.is_complete()
+            {
+                println!("\nPotential Destinations");
+                println!("----------------------");
+
+                for (index, candidate) in report.destination_discovery.candidates.iter().enumerate()
+                {
+                    println!("\nPotential destination {}", index + 1);
+                    println!(
+                        "  Type: {}",
+                        destination_kind_label(candidate.reference.kind)
+                    );
+                    println!(
+                        "  Relationship: {}",
+                        if candidate.provenance.depth == 0 {
+                            "Directly embedded candidate"
+                        } else {
+                            "Nested candidate"
+                        }
+                    );
+                    println!("  Submitted reference: {}", candidate.reference.submitted);
+                    println!("  Normalized reference: {}", candidate.reference.normalized);
+                    println!("  Candidate hostname: {}", candidate.reference.hostname);
+                    println!(
+                        "  Top-level parameter position: {}",
+                        candidate.provenance.top_level_parameter_index + 1
+                    );
+                    println!(
+                        "  Source parameter: {}",
+                        candidate.provenance.source_parameter
+                    );
+                    println!(
+                        "  Source parameter position: {}",
+                        candidate.provenance.source_parameter_index + 1
+                    );
+                    println!("  Discovery depth: {}", candidate.provenance.depth);
+                    if let Some(parent) = candidate.provenance.parent_candidate_index {
+                        println!("  Parent candidate: {}", parent + 1);
+                    }
+                    println!(
+                        "  Decoding passes: {}",
+                        candidate.provenance.decoding.steps.len()
+                    );
+                    for (pass, step) in candidate.provenance.decoding.steps.iter().enumerate() {
+                        println!("  Discovery pass {} input: {}", pass + 1, step.input);
+                        println!("  Discovery pass {} output: {}", pass + 1, step.output);
+                    }
+                    println!(
+                        "  Note: Potential destination evidence only; no redirect was verified."
+                    );
+                }
+
+                if !report.destination_discovery.status.is_complete() {
+                    println!("\nDestination discovery incomplete");
+                    for limit in report.destination_discovery.status.limits() {
+                        println!("  {}", limit.explanation());
+                    }
                 }
             }
         }
@@ -165,5 +235,17 @@ fn main() {
             eprintln!("Unable to analyze URL: {reason}.");
             std::process::exit(1);
         }
+    }
+}
+
+fn destination_kind_label(kind: DestinationReferenceKind) -> &'static str {
+    match kind {
+        DestinationReferenceKind::Absolute {
+            scheme: DestinationScheme::Http,
+        } => "Absolute HTTP candidate URL",
+        DestinationReferenceKind::Absolute {
+            scheme: DestinationScheme::Https,
+        } => "Absolute HTTPS candidate URL",
+        DestinationReferenceKind::ProtocolRelative => "Protocol-relative reference",
     }
 }

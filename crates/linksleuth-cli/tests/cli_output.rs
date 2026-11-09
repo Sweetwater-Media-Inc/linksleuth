@@ -171,11 +171,61 @@ fn cli_shareable_mode_reports_malformed_encoding_and_pass_limits_privately() {
     assert!(stdout.contains("The original text was preserved during analysis."));
     assert!(stdout.contains("2. Decoding pass limit reached"));
     assert!(stdout.contains("Additional encoded sequences may remain."));
+    assert!(stdout.contains("Destination discovery: incomplete"));
+    assert!(stdout.contains("reached the decoding pass limit"));
     assert!(!stdout.contains("private.example.com"));
     assert!(!stdout.contains("broken"));
     assert!(!stdout.contains("secret%ZZvalue"));
     assert!(!stdout.contains("deep"));
     assert!(!stdout.contains("%2525252541"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn cli_shareable_mode_summarizes_nested_protocol_relative_candidates_privately() {
+    let input = "https://private.example.com/?target=https%3A%2F%2Fmiddle.example%2F%3Fnext%3D%252F%252Fnested.example%252Fprivate";
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .args(["--shareable", input])
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Hostname: [REDACTED]"));
+    assert!(stdout.contains("Potential embedded destinations: 2"));
+    assert!(stdout.contains("Nested candidates: 1"));
+    assert!(stdout.contains("Protocol-relative references: 1"));
+    assert!(stdout.contains("Potential protocol-relative reference"));
+    assert!(stdout.contains("No scheme or redirect has been verified."));
+    assert!(!stdout.contains("private.example.com"));
+    assert!(!stdout.contains("middle.example"));
+    assert!(!stdout.contains("nested.example"));
+    assert!(!stdout.contains("target"));
+    assert!(!stdout.contains("next"));
+    assert!(!stdout.contains("/private"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn cli_hostname_opt_in_does_not_disclose_nested_hostnames() {
+    let input = "https://private.example.com/?target=https%3A%2F%2Fmiddle.example%2F%3Fnext%3D%252F%252Fnested.example%252Fprivate";
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .args(["--shareable", "--include-hostname", input])
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Hostname: private.example.com"));
+    assert!(!stdout.contains("middle.example"));
+    assert!(!stdout.contains("nested.example"));
+    assert!(!stdout.contains("/private"));
     assert!(stderr.is_empty());
 }
 
@@ -245,6 +295,34 @@ fn cli_default_mode_remains_detailed() {
     assert!(stdout.contains("Parameter: token"));
 
     assert!(!stdout.contains("LinkSleuth Shareable Summary"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn cli_detailed_mode_shows_nested_destination_provenance() {
+    let input = "https://top.example/?target=https%3A%2F%2Fmiddle.example%2F%3Fnext%3D%252F%252Fnested.example%252Fpath";
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .arg(input)
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Potential Destinations"));
+    assert!(stdout.contains("Type: Absolute HTTPS candidate URL"));
+    assert!(stdout.contains("Type: Protocol-relative reference"));
+    assert!(stdout.contains("Relationship: Nested candidate"));
+    assert!(stdout.contains("Discovery depth: 1"));
+    assert!(stdout.contains("Parent candidate: 1"));
+    assert!(stdout.contains("Top-level parameter position: 1"));
+    assert!(stdout.contains("Source parameter: next"));
+    assert!(stdout.contains("Discovery pass 1 input:"));
+    assert!(stdout.contains("no redirect was verified"));
+    assert!(!stdout.contains("redirected to"));
+    assert!(!stdout.contains("final destination"));
     assert!(stderr.is_empty());
 }
 

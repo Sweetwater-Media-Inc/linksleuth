@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::analysis::AnalysisReport;
 use crate::decoder::DecodingStatus;
+use crate::destinations::{DestinationDiscoveryStatus, DestinationReferenceKind};
 use crate::normalization::{NormalizationKind, OriginalPathAnalysis};
 
 #[derive(Clone, PartialEq, Eq)]
@@ -11,6 +12,9 @@ pub struct ShareableReport {
     pub original_path_analysis: OriginalPathAnalysis,
     pub normalization_finding_count: usize,
     pub embedded_destination_count: usize,
+    pub nested_destination_count: usize,
+    pub protocol_relative_destination_count: usize,
+    pub destination_discovery_status: DestinationDiscoveryStatus,
     pub findings: Vec<ShareableFinding>,
 }
 
@@ -30,6 +34,15 @@ impl fmt::Debug for ShareableReport {
             .field(
                 "embedded_destination_count",
                 &self.embedded_destination_count,
+            )
+            .field("nested_destination_count", &self.nested_destination_count)
+            .field(
+                "protocol_relative_destination_count",
+                &self.protocol_relative_destination_count,
+            )
+            .field(
+                "destination_discovery_status",
+                &self.destination_discovery_status,
             )
             .field("findings", &self.findings)
             .finish()
@@ -64,8 +77,10 @@ impl Default for ShareableReportOptions {
 pub enum ShareableFindingKind {
     EncodedParentDirectorySegment,
     PotentialEmbeddedDestination,
+    PotentialProtocolRelativeReference,
     MalformedPercentEncoding,
     DecodingPassLimitReached,
+    DestinationDiscoveryIncomplete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,8 +99,14 @@ impl ShareableFinding {
                 "Encoded parent-directory segment"
             }
             ShareableFindingKind::PotentialEmbeddedDestination => "Potential embedded destination",
+            ShareableFindingKind::PotentialProtocolRelativeReference => {
+                "Potential protocol-relative reference"
+            }
             ShareableFindingKind::MalformedPercentEncoding => "Malformed percent encoding",
             ShareableFindingKind::DecodingPassLimitReached => "Decoding pass limit reached",
+            ShareableFindingKind::DestinationDiscoveryIncomplete => {
+                "Destination discovery incomplete"
+            }
         }
     }
 
@@ -99,6 +120,10 @@ impl ShareableFinding {
                 "A complete HTTP/HTTPS URL was identified within",
                 "a query parameter. No redirect has been verified.",
             ],
+            ShareableFindingKind::PotentialProtocolRelativeReference => &[
+                "A protocol-relative URL reference was identified within",
+                "a query parameter. No scheme or redirect has been verified.",
+            ],
             ShareableFindingKind::MalformedPercentEncoding => &[
                 "One or more query parameters contained malformed percent",
                 "encoding. The original text was preserved during analysis.",
@@ -106,6 +131,10 @@ impl ShareableFinding {
             ShareableFindingKind::DecodingPassLimitReached => &[
                 "One or more query parameters reached the decoding pass limit.",
                 "Additional encoded sequences may remain.",
+            ],
+            ShareableFindingKind::DestinationDiscoveryIncomplete => &[
+                "One or more destination discovery limits were reached.",
+                "Additional potential destinations may remain undiscovered.",
             ],
         }
     }
@@ -127,10 +156,18 @@ pub fn create_shareable_report_with_options(
     report: &AnalysisReport,
     options: ShareableReportOptions,
 ) -> ShareableReport {
-    let embedded_destination_count = report
-        .parameters
+    let embedded_destination_count = report.destination_discovery.candidates.len();
+    let nested_destination_count = report
+        .destination_discovery
+        .candidates
         .iter()
-        .filter(|parameter| parameter.destination.is_some())
+        .filter(|candidate| candidate.provenance.depth > 0)
+        .count();
+    let protocol_relative_destination_count = report
+        .destination_discovery
+        .candidates
+        .iter()
+        .filter(|candidate| candidate.reference.kind == DestinationReferenceKind::ProtocolRelative)
         .count();
     let has_malformed_percent_encoding = report.parameters.iter().any(|parameter| {
         parameter
@@ -156,9 +193,15 @@ pub fn create_shareable_report_with_options(
         ));
     }
 
-    if embedded_destination_count > 0 {
+    if embedded_destination_count > protocol_relative_destination_count {
         findings.push(ShareableFinding::new(
             ShareableFindingKind::PotentialEmbeddedDestination,
+        ));
+    }
+
+    if protocol_relative_destination_count > 0 {
+        findings.push(ShareableFinding::new(
+            ShareableFindingKind::PotentialProtocolRelativeReference,
         ));
     }
 
@@ -174,6 +217,12 @@ pub fn create_shareable_report_with_options(
         ));
     }
 
+    if !report.destination_discovery.status.is_complete() {
+        findings.push(ShareableFinding::new(
+            ShareableFindingKind::DestinationDiscoveryIncomplete,
+        ));
+    }
+
     ShareableReport {
         hostname: if options.include_hostname {
             report.url.hostname.clone()
@@ -184,6 +233,9 @@ pub fn create_shareable_report_with_options(
         original_path_analysis: report.original_path_analysis,
         normalization_finding_count: report.normalization_findings.len(),
         embedded_destination_count,
+        nested_destination_count,
+        protocol_relative_destination_count,
+        destination_discovery_status: report.destination_discovery.status.clone(),
         findings,
     }
 }
@@ -217,6 +269,9 @@ mod tests {
         );
         assert_eq!(shared.normalization_finding_count, 0);
         assert_eq!(shared.embedded_destination_count, 0);
+        assert_eq!(shared.nested_destination_count, 0);
+        assert_eq!(shared.protocol_relative_destination_count, 0);
+        assert!(shared.destination_discovery_status.is_complete());
         assert!(shared.findings.is_empty());
     }
 
@@ -260,6 +315,7 @@ mod tests {
                 ShareableFinding::new(ShareableFindingKind::PotentialEmbeddedDestination),
                 ShareableFinding::new(ShareableFindingKind::MalformedPercentEncoding),
                 ShareableFinding::new(ShareableFindingKind::DecodingPassLimitReached),
+                ShareableFinding::new(ShareableFindingKind::DestinationDiscoveryIncomplete),
             ]
         );
         assert_eq!(
@@ -306,6 +362,38 @@ mod tests {
                 ShareableFindingKind::PotentialEmbeddedDestination
             )]
         );
+    }
+
+    #[test]
+    fn shareable_report_summarizes_nested_protocol_relative_discovery_without_evidence() {
+        let report = analyze_url(
+            "https://private.example.com/?target=https%3A%2F%2Fmiddle.example%2F%3Fnext%3D%252F%252Fnested.example%252Fprivate",
+        )
+        .unwrap();
+
+        let shared = create_shareable_report_with_options(
+            &report,
+            ShareableReportOptions::new().with_hostname(),
+        );
+
+        assert_eq!(shared.hostname, "private.example.com");
+        assert_eq!(shared.embedded_destination_count, 2);
+        assert_eq!(shared.nested_destination_count, 1);
+        assert_eq!(shared.protocol_relative_destination_count, 1);
+        assert!(shared.destination_discovery_status.is_complete());
+        assert_eq!(
+            shared.findings,
+            vec![
+                ShareableFinding::new(ShareableFindingKind::PotentialEmbeddedDestination),
+                ShareableFinding::new(ShareableFindingKind::PotentialProtocolRelativeReference),
+            ]
+        );
+
+        let output = format!("{shared:?}");
+        assert!(!output.contains("private.example.com"));
+        assert!(!output.contains("middle.example"));
+        assert!(!output.contains("nested.example"));
+        assert!(!output.contains("/private"));
     }
 
     #[test]
@@ -357,12 +445,15 @@ mod tests {
 
         let shared = create_shareable_report(&report);
         let field_output = format!(
-            "{}:{}:{:?}:{}:{}:{:?}",
+            "{}:{}:{:?}:{}:{}:{}:{}:{:?}:{:?}",
             shared.hostname,
             shared.query_parameter_count,
             shared.original_path_analysis,
             shared.normalization_finding_count,
             shared.embedded_destination_count,
+            shared.nested_destination_count,
+            shared.protocol_relative_destination_count,
+            shared.destination_discovery_status,
             shared.findings,
         );
         let debug_output = format!("{shared:?}");

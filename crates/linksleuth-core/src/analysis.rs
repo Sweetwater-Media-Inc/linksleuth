@@ -1,5 +1,8 @@
 use crate::decoder::{DecodeError, DecodingResult, decode_percent};
-use crate::destinations::{EmbeddedDestination, discover_destination};
+use crate::destinations::{
+    DestinationDiscovery, DestinationDiscoverySeed, EmbeddedDestination, discover_destination,
+    discover_destinations,
+};
 use crate::normalization::{
     NormalizationFinding, OriginalPathAnalysis, analyze_normalization_with_coverage,
 };
@@ -12,6 +15,10 @@ pub struct ParameterAnalysis {
     /// Bounded iterative percent decoding of the parameter's exact raw value.
     pub decoding: Result<DecodingResult, DecodeError>,
     /// Passive candidate discovered from the final iterative decoding output.
+    ///
+    /// This compatibility field represents directly embedded absolute URLs.
+    /// Use `AnalysisReport::destination_discovery` for protocol-relative and
+    /// nested candidates with complete provenance.
     pub destination: Option<EmbeddedDestination>,
 }
 
@@ -23,13 +30,15 @@ pub struct AnalysisReport {
     pub original_path_analysis: OriginalPathAnalysis,
     /// Findings derived only from confidently extracted original path evidence.
     pub normalization_findings: Vec<NormalizationFinding>,
+    /// Bounded direct and nested potential destination discovery.
+    pub destination_discovery: DestinationDiscovery,
 }
 
 pub fn analyze_url(input: &str) -> Result<AnalysisReport, UrlError> {
     let url = parse_url(input)?;
     let normalization = analyze_normalization_with_coverage(&url);
 
-    let parameters = url
+    let parameters: Vec<ParameterAnalysis> = url
         .query_parameters
         .iter()
         .map(|parameter| {
@@ -50,11 +59,25 @@ pub fn analyze_url(input: &str) -> Result<AnalysisReport, UrlError> {
         })
         .collect();
 
+    let discovery_seeds = url
+        .query_parameters
+        .iter()
+        .zip(&parameters)
+        .enumerate()
+        .map(|(index, (parameter, analysis))| DestinationDiscoverySeed {
+            top_level_parameter_index: index,
+            source_parameter: &parameter.name,
+            decoding: &analysis.decoding,
+        })
+        .collect::<Vec<_>>();
+    let destination_discovery = discover_destinations(&discovery_seeds);
+
     Ok(AnalysisReport {
         url,
         parameters,
         original_path_analysis: normalization.original_path_analysis,
         normalization_findings: normalization.findings,
+        destination_discovery,
     })
 }
 
@@ -102,6 +125,44 @@ mod tests {
 
         assert_eq!(destination.hostname, "other.example");
         assert_eq!(destination.decoding_passes, 2);
+        assert_eq!(report.destination_discovery.candidates.len(), 1);
+    }
+
+    #[test]
+    fn discovers_protocol_relative_and_nested_candidates_with_provenance() {
+        let report = analyze_url(
+            "https://example.com/?target=https%3A%2F%2Fmiddle.example%2F%3Fnext%3D%252F%252Ffinal.example%252Fpath",
+        )
+        .unwrap();
+
+        assert_eq!(report.destination_discovery.candidates.len(), 2);
+        let direct = &report.destination_discovery.candidates[0];
+        let nested = &report.destination_discovery.candidates[1];
+
+        assert_eq!(direct.reference.hostname, "middle.example");
+        assert_eq!(direct.provenance.depth, 0);
+        assert_eq!(direct.provenance.top_level_parameter_index, 0);
+        assert_eq!(nested.reference.hostname, "final.example");
+        assert_eq!(nested.provenance.depth, 1);
+        assert_eq!(nested.provenance.parent_candidate_index, Some(0));
+        assert_eq!(nested.provenance.source_parameter, "next");
+    }
+
+    #[test]
+    fn discovers_direct_protocol_relative_candidate_without_changing_legacy_field() {
+        let report = analyze_url("https://example.com/?target=%2F%2Fother.example%2Fpath").unwrap();
+
+        assert!(report.parameters[0].destination.is_none());
+        assert_eq!(report.destination_discovery.candidates.len(), 1);
+
+        let candidate = &report.destination_discovery.candidates[0];
+        assert_eq!(
+            candidate.reference.kind,
+            crate::destinations::DestinationReferenceKind::ProtocolRelative
+        );
+        assert_eq!(candidate.reference.submitted, "//other.example/path");
+        assert_eq!(candidate.provenance.depth, 0);
+        assert_eq!(candidate.provenance.parent_candidate_index, None);
     }
 
     #[test]
@@ -132,6 +193,7 @@ mod tests {
             report.parameters[0].destination.as_ref().unwrap().hostname,
             "other.example"
         );
+        assert_eq!(report.destination_discovery.candidates.len(), 1);
     }
 
     #[test]
