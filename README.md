@@ -26,18 +26,18 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Preserve malformed percent sequences as warnings while decoding valid sequences.
 - Record the decoding-attempt number and byte offset for each warning.
 - Report whether further percent decoding may remain.
-- Identify complete HTTP/HTTPS URLs embedded in decoded query parameter values.
+- Discover complete HTTP/HTTPS and protocol-relative URL references embedded in decoded query parameter values, including nested candidates within other candidate URLs. Preserve direct versus nested relationships, parameter positions, decoding provenance, and reference type.
 - Produce preliminary structured findings for encoded parent-directory segments in original URL paths, showing original and normalized paths with an evidence-based explanation.
 - Include normalization findings alongside decoded parameters and possible embedded destinations in the reusable `AnalysisReport`.
 - Recognize forward and backslash separators in supported original-path evidence, while excluding query strings and fragments from these findings.
 - Explicitly distinguish examined original-path evidence from unsupported or ambiguous extraction using typed coverage metadata, avoiding an unsupported-is-clean interpretation.
 - Inspect URLs using a command-line tool that displays normalization findings alongside decoding results and possible embedded destinations.
-- Generate a structured privacy-reduced `ShareableReport` in the core library: hostname redacted by default, aggregate counts, and four fixed-text findings (encoded parent-directory segment, candidate embedded destination, malformed percent encoding, decoding pass limit). An options-aware API allows explicit hostname inclusion.
+- Generate a structured privacy-reduced `ShareableReport` in the core library: hostname redacted by default, aggregate counts including nested/protocol-relative candidates, typed discovery-completeness status, and fixed-text observations for normalization, candidate destinations, protocol-relative references, malformed encoding, pass limits, and incomplete discovery. An options-aware API allows explicit hostname inclusion.
 - Use `--shareable` in the CLI to print a privacy-reduced report with readable findings, or `--shareable --include-hostname` to deliberately reveal the hostname. Tests cover privacy-sensitive output, error handling, opt-in disclosure, and detailed-mode compatibility.
-- Bound input to 16 KiB, non-empty query parameters to 256, decoder input to 16 KiB, and percent decoding to three passes.
+- Bound input to 16 KiB, non-empty top-level query parameters to 256, decoder input to 16 KiB, and percent decoding to three passes. Nested discovery additionally stops at depth 3, 64 candidate occurrences, or 32 parameters per nested URL, and reports incomplete coverage when appropriate.
 - Run automated tests covering parsing, decoding, Unicode, normalization coverage, resource limits, privacy-reduced reporting, and actual CLI output; GitHub Actions runs formatting, workspace tests, and Clippy on pushes and pull requests to main.
 
-**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; some unusual original-path spellings remain unsupported and normalization detection remains limited to encoded parent-directory patterns. Privacy-reduced reporting is not a fully audited or anonymous export; counts and finding categories may reveal metadata. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
+**Limitations:** Normalization findings currently recognize encoded parent-directory patterns only, and some unusual original-path spellings remain unsupported. Nested destination discovery examines only complete candidate references in supported query values; it does not extract arbitrary substrings, decode Base64/HTML entities, or verify any redirect. Privacy-reduced reporting is not a fully audited or anonymous export; counts and finding categories may reveal metadata. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
 
 ## Build and test
 
@@ -59,7 +59,7 @@ cargo run -p linksleuth-cli -- \
   "https://example.com/?target=https%253A%252F%252Fother.example"
 ```
 
-The default CLI mode reports URL components, decoding steps, percent-decoding completion or pass-limit conditions, malformed-sequence observations, potential embedded URLs, and supported normalization findings with original/normalized path evidence. It also distinguishes unsupported original-path analysis from an examined path with no finding. For privacy-reduced output, run `cargo run -p linksleuth-cli -- --shareable 'https://example.com/?token=example'`; this prints a redacted hostname, aggregate counts, and fixed-text observations instead of original URL evidence. Add `--include-hostname` after `--shareable` only when you deliberately want to disclose the hostname. No suspicious destination is contacted.
+The default CLI mode reports URL components, decoding steps, percent-decoding completion or pass-limit conditions, malformed-sequence observations, direct and nested potential destinations with provenance, and supported normalization findings with original/normalized path evidence. It also distinguishes unsupported original-path analysis from an examined path with no finding. For privacy-reduced output, run `cargo run -p linksleuth-cli -- --shareable 'https://example.com/?token=example'`; this prints a redacted hostname, aggregate counts, and fixed-text observations instead of original URL evidence. Add `--include-hostname` after `--shareable` only when you deliberately want to disclose the hostname. No suspicious destination is contacted.
 
 ## Project structure
 
