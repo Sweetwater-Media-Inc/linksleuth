@@ -3,6 +3,10 @@ use std::collections::{HashSet, VecDeque};
 use url::Url;
 
 use crate::decoder::{DecodeError, DecodingResult, DecodingStatus, decode_percent};
+use crate::encodings::{
+    Base64Alphabet, Base64DecodingOutcome, Base64Padding, HtmlReferenceDecodingOutcome,
+    HtmlReferenceIssueKind, decode_base64_complete, decode_html_character_references_complete,
+};
 use crate::parser::{UrlError, parse_url};
 
 /// Maximum nested candidate depth. Directly embedded candidates have depth 0.
@@ -62,6 +66,22 @@ pub struct DestinationProvenance {
     pub parent_candidate_index: Option<usize>,
     /// Complete bounded decoding provenance for the source parameter value.
     pub decoding: DecodingResult,
+    /// Ordered transformations that produced the classified reference.
+    pub transformations: Vec<DestinationTransformation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DestinationTransformation {
+    PercentDecoding {
+        passes: usize,
+    },
+    Base64Decoding {
+        alphabet: Base64Alphabet,
+        padding: Base64Padding,
+    },
+    HtmlCharacterReferenceDecoding {
+        reference_count: usize,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +98,8 @@ pub enum DestinationDiscoveryLimit {
     DecoderInputLength,
     DecodingPassLimit,
     NestedUrlLength,
+    SecondaryEncodingInputLength,
+    SecondaryDecodedOutputLength,
 }
 
 impl DestinationDiscoveryLimit {
@@ -102,6 +124,70 @@ impl DestinationDiscoveryLimit {
             Self::NestedUrlLength => {
                 "A nested URL exceeded the supported URL length and was not examined further."
             }
+            Self::SecondaryEncodingInputLength => {
+                "A destination source exceeded the secondary-decoding input limit and was not examined."
+            }
+            Self::SecondaryDecodedOutputLength => {
+                "A secondary-decoding result exceeded the supported output limit and was not retained."
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DestinationEncodingIssueKind {
+    MalformedBase64,
+    MalformedHtmlCharacterReference,
+    UnsupportedHtmlCharacterReference,
+    InvalidHtmlUnicodeScalar,
+}
+
+impl DestinationEncodingIssueKind {
+    /// Fixed privacy-safe explanation suitable for detailed or shareable output.
+    pub const fn explanation(self) -> &'static str {
+        match self {
+            Self::MalformedBase64 => {
+                "A Base64-like destination source had malformed alphabet, padding, or trailing bits."
+            }
+            Self::MalformedHtmlCharacterReference => {
+                "An HTML character reference was malformed or missing its required semicolon."
+            }
+            Self::UnsupportedHtmlCharacterReference => {
+                "An HTML named character reference was outside the supported URL-syntax set."
+            }
+            Self::InvalidHtmlUnicodeScalar => {
+                "An HTML numeric character reference did not represent a valid Unicode scalar value."
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DestinationEncodingIssue {
+    pub kind: DestinationEncodingIssueKind,
+    pub top_level_parameter_index: usize,
+    pub source_parameter_index: usize,
+    pub depth: usize,
+    pub parent_candidate_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DestinationEncodingCoverage {
+    Complete,
+    Incomplete {
+        issues: Vec<DestinationEncodingIssueKind>,
+    },
+}
+
+impl DestinationEncodingCoverage {
+    pub fn is_complete(&self) -> bool {
+        matches!(self, Self::Complete)
+    }
+
+    pub fn issues(&self) -> &[DestinationEncodingIssueKind] {
+        match self {
+            Self::Complete => &[],
+            Self::Incomplete { issues } => issues,
         }
     }
 }
@@ -131,6 +217,14 @@ impl DestinationDiscoveryStatus {
 pub struct DestinationDiscovery {
     pub candidates: Vec<DiscoveredDestination>,
     pub status: DestinationDiscoveryStatus,
+    pub encoding_coverage: DestinationEncodingCoverage,
+    pub encoding_issues: Vec<DestinationEncodingIssue>,
+}
+
+impl DestinationDiscovery {
+    pub fn is_complete(&self) -> bool {
+        self.status.is_complete() && self.encoding_coverage.is_complete()
+    }
 }
 
 /// Borrowed top-level evidence used to seed bounded destination discovery.
@@ -166,7 +260,7 @@ pub fn discover_destination(
 /// searched. Backslash-based and parser-trimmed spellings are declined as
 /// ambiguous. No network operation is performed.
 pub fn discover_destination_reference(value: &str) -> Option<DestinationReference> {
-    if value.trim() != value || value.contains('\\') {
+    if value.trim() != value || value.contains('\\') || value.chars().any(char::is_control) {
         return None;
     }
 
@@ -293,21 +387,14 @@ pub fn discover_destinations(seeds: &[DestinationDiscoverySeed<'_>]) -> Destinat
             Err(DecodeError::InvalidUtf8) => continue,
         };
 
-        state.observe_decoding_status(decoding);
-
-        let Some(reference) = discover_destination_reference(&decoding.decoded) else {
-            continue;
-        };
-
-        state.add_candidate(
-            reference,
-            DestinationProvenance {
+        state.examine_source(
+            decoding.clone(),
+            CandidateSource {
                 top_level_parameter_index: seed.top_level_parameter_index,
                 source_parameter_index: seed.top_level_parameter_index,
                 source_parameter: seed.source_parameter.to_string(),
                 depth: 0,
                 parent_candidate_index: None,
-                decoding: decoding.clone(),
             },
         );
     }
@@ -322,12 +409,21 @@ struct PendingTraversal {
     parser_input: String,
 }
 
+struct CandidateSource {
+    top_level_parameter_index: usize,
+    source_parameter_index: usize,
+    source_parameter: String,
+    depth: usize,
+    parent_candidate_index: Option<usize>,
+}
+
 #[derive(Default)]
 struct DiscoveryState {
     candidates: Vec<DiscoveredDestination>,
     pending: VecDeque<PendingTraversal>,
     traversed: HashSet<(DestinationReferenceKind, String)>,
     limits: Vec<DestinationDiscoveryLimit>,
+    encoding_issues: Vec<DestinationEncodingIssue>,
     candidate_limit_reached: bool,
 }
 
@@ -342,6 +438,107 @@ impl DiscoveryState {
         if decoding.status == DecodingStatus::PassLimitReached {
             self.add_limit(DestinationDiscoveryLimit::DecodingPassLimit);
         }
+    }
+
+    fn examine_source(&mut self, decoding: DecodingResult, source: CandidateSource) {
+        self.observe_decoding_status(&decoding);
+
+        let mut transformations = Vec::new();
+        if !decoding.steps.is_empty() {
+            transformations.push(DestinationTransformation::PercentDecoding {
+                passes: decoding.steps.len(),
+            });
+        }
+
+        if let Some(reference) = discover_destination_reference(&decoding.decoded) {
+            self.add_candidate_from_source(reference, decoding, transformations, source);
+            return;
+        }
+
+        match decode_base64_complete(&decoding.decoded) {
+            Base64DecodingOutcome::Decoded(base64) => {
+                let Some(reference) = discover_destination_reference(&base64.decoded) else {
+                    return;
+                };
+                transformations.push(DestinationTransformation::Base64Decoding {
+                    alphabet: base64.alphabet,
+                    padding: base64.padding,
+                });
+                self.add_candidate_from_source(reference, decoding, transformations, source);
+                return;
+            }
+            Base64DecodingOutcome::Malformed => {
+                self.add_encoding_issue(DestinationEncodingIssueKind::MalformedBase64, &source);
+                return;
+            }
+            Base64DecodingOutcome::InputTooLong => {
+                self.add_limit(DestinationDiscoveryLimit::SecondaryEncodingInputLength);
+                return;
+            }
+            Base64DecodingOutcome::OutputTooLong => {
+                self.add_limit(DestinationDiscoveryLimit::SecondaryDecodedOutputLength);
+                return;
+            }
+            Base64DecodingOutcome::InvalidUtf8 => return,
+            Base64DecodingOutcome::NotApplicable => {}
+        }
+
+        match decode_html_character_references_complete(&decoding.decoded) {
+            HtmlReferenceDecodingOutcome::Decoded(html) => {
+                if !html.status.is_complete() {
+                    for issue in html.status.issues() {
+                        self.add_encoding_issue(map_html_issue(*issue), &source);
+                    }
+                    return;
+                }
+
+                let Some(reference) = discover_destination_reference(&html.decoded) else {
+                    return;
+                };
+                transformations.push(DestinationTransformation::HtmlCharacterReferenceDecoding {
+                    reference_count: html.reference_count,
+                });
+                self.add_candidate_from_source(reference, decoding, transformations, source);
+            }
+            HtmlReferenceDecodingOutcome::InputTooLong => {
+                self.add_limit(DestinationDiscoveryLimit::SecondaryEncodingInputLength);
+            }
+            HtmlReferenceDecodingOutcome::OutputTooLong => {
+                self.add_limit(DestinationDiscoveryLimit::SecondaryDecodedOutputLength);
+            }
+            HtmlReferenceDecodingOutcome::NotApplicable => {}
+        }
+    }
+
+    fn add_candidate_from_source(
+        &mut self,
+        reference: DestinationReference,
+        decoding: DecodingResult,
+        transformations: Vec<DestinationTransformation>,
+        source: CandidateSource,
+    ) {
+        self.add_candidate(
+            reference,
+            DestinationProvenance {
+                top_level_parameter_index: source.top_level_parameter_index,
+                source_parameter_index: source.source_parameter_index,
+                source_parameter: source.source_parameter,
+                depth: source.depth,
+                parent_candidate_index: source.parent_candidate_index,
+                decoding,
+                transformations,
+            },
+        );
+    }
+
+    fn add_encoding_issue(&mut self, kind: DestinationEncodingIssueKind, source: &CandidateSource) {
+        self.encoding_issues.push(DestinationEncodingIssue {
+            kind,
+            top_level_parameter_index: source.top_level_parameter_index,
+            source_parameter_index: source.source_parameter_index,
+            depth: source.depth,
+            parent_candidate_index: source.parent_candidate_index,
+        });
     }
 
     fn add_candidate(
@@ -431,21 +628,14 @@ impl DiscoveryState {
                     Err(DecodeError::InvalidUtf8) => continue,
                 };
 
-                self.observe_decoding_status(&decoding);
-
-                let Some(reference) = discover_destination_reference(&decoding.decoded) else {
-                    continue;
-                };
-
-                self.add_candidate(
-                    reference,
-                    DestinationProvenance {
+                self.examine_source(
+                    decoding,
+                    CandidateSource {
                         top_level_parameter_index,
                         source_parameter_index: parameter_index,
                         source_parameter: parameter.name.clone(),
                         depth: next_depth,
                         parent_candidate_index: Some(pending.candidate_index),
-                        decoding,
                     },
                 );
 
@@ -465,9 +655,39 @@ impl DiscoveryState {
             }
         };
 
+        let mut coverage_issues = Vec::new();
+        for issue in &self.encoding_issues {
+            if !coverage_issues.contains(&issue.kind) {
+                coverage_issues.push(issue.kind);
+            }
+        }
+        let encoding_coverage = if coverage_issues.is_empty() {
+            DestinationEncodingCoverage::Complete
+        } else {
+            DestinationEncodingCoverage::Incomplete {
+                issues: coverage_issues,
+            }
+        };
+
         DestinationDiscovery {
             candidates: self.candidates,
             status,
+            encoding_coverage,
+            encoding_issues: self.encoding_issues,
+        }
+    }
+}
+
+fn map_html_issue(issue: HtmlReferenceIssueKind) -> DestinationEncodingIssueKind {
+    match issue {
+        HtmlReferenceIssueKind::MalformedReference => {
+            DestinationEncodingIssueKind::MalformedHtmlCharacterReference
+        }
+        HtmlReferenceIssueKind::UnsupportedNamedReference => {
+            DestinationEncodingIssueKind::UnsupportedHtmlCharacterReference
+        }
+        HtmlReferenceIssueKind::InvalidUnicodeScalar => {
+            DestinationEncodingIssueKind::InvalidHtmlUnicodeScalar
         }
     }
 }
@@ -767,5 +987,176 @@ mod tests {
 
         assert!(discovery.candidates.is_empty());
         assert!(discovery.status.is_complete());
+        assert!(discovery.encoding_coverage.is_complete());
+    }
+
+    #[test]
+    fn discovers_padded_unpadded_and_url_safe_base64_candidates() {
+        let input = concat!(
+            "https://top.example/?padded=aHR0cHM6Ly9vdGhlci5leGFtcGxlLw==",
+            "&unpadded=Ly9wcm90b2NvbC5leGFtcGxlL3BhdGg",
+            "&urlsafe=aHR0cHM6Ly91cmxzYWZlLmV4YW1wbGUv8J-YgA"
+        );
+
+        let discovery = discover(input);
+
+        assert_eq!(discovery.candidates.len(), 3);
+        assert_eq!(discovery.candidates[0].reference.hostname, "other.example");
+        assert_eq!(
+            discovery.candidates[1].reference.kind,
+            DestinationReferenceKind::ProtocolRelative
+        );
+        assert_eq!(
+            discovery.candidates[2].reference.hostname,
+            "urlsafe.example"
+        );
+        assert_eq!(
+            discovery.candidates[0].provenance.transformations,
+            vec![DestinationTransformation::Base64Decoding {
+                alphabet: Base64Alphabet::Ambiguous,
+                padding: Base64Padding::Padded,
+            }]
+        );
+        assert_eq!(
+            discovery.candidates[1].provenance.transformations,
+            vec![DestinationTransformation::Base64Decoding {
+                alphabet: Base64Alphabet::Ambiguous,
+                padding: Base64Padding::Unpadded,
+            }]
+        );
+        assert_eq!(
+            discovery.candidates[2].provenance.transformations,
+            vec![DestinationTransformation::Base64Decoding {
+                alphabet: Base64Alphabet::UrlSafe,
+                padding: Base64Padding::Unpadded,
+            }]
+        );
+        assert!(discovery.is_complete());
+    }
+
+    #[test]
+    fn discovers_decimal_hexadecimal_and_named_html_reference_candidates() {
+        let decimal = encode("https&#58;&#47;&#47;decimal.example&#47;");
+        let hexadecimal = encode("https&#x3A;&#x2F;&#X2f;hex.example&#x2f;");
+        let named = encode("https&colon;&sol;&sol;named.example&sol;");
+        let input =
+            format!("https://top.example/?decimal={decimal}&hex={hexadecimal}&named={named}");
+
+        let discovery = discover(&input);
+
+        assert_eq!(discovery.candidates.len(), 3);
+        assert_eq!(
+            discovery
+                .candidates
+                .iter()
+                .map(|candidate| candidate.reference.hostname.as_str())
+                .collect::<Vec<_>>(),
+            ["decimal.example", "hex.example", "named.example"]
+        );
+        for candidate in &discovery.candidates {
+            assert!(matches!(
+                candidate.provenance.transformations.as_slice(),
+                [
+                    DestinationTransformation::PercentDecoding { passes: 1 },
+                    DestinationTransformation::HtmlCharacterReferenceDecoding { .. }
+                ]
+            ));
+        }
+    }
+
+    #[test]
+    fn preserves_percent_then_base64_order_and_discovers_nested_encoded_candidates() {
+        let encoded_parent =
+            "aHR0cHM6Ly9taWRkbGUuZXhhbXBsZS8/bmV4dD1hSFIwY0hNNkx5OWphR2xzWkM1bGVHRnRjR3hsTHc9PQ==";
+        let input = format!("https://top.example/?payload={}", encode(encoded_parent));
+
+        let discovery = discover(&input);
+
+        assert_eq!(discovery.candidates.len(), 2);
+        assert_eq!(discovery.candidates[0].reference.hostname, "middle.example");
+        assert_eq!(discovery.candidates[1].reference.hostname, "child.example");
+        assert_eq!(discovery.candidates[1].provenance.depth, 1);
+        assert_eq!(
+            discovery.candidates[1].provenance.parent_candidate_index,
+            Some(0)
+        );
+        assert!(matches!(
+            discovery.candidates[0]
+                .provenance
+                .transformations
+                .as_slice(),
+            [
+                DestinationTransformation::PercentDecoding { passes: 1 },
+                DestinationTransformation::Base64Decoding { .. }
+            ]
+        ));
+        assert!(matches!(
+            discovery.candidates[1]
+                .provenance
+                .transformations
+                .as_slice(),
+            [DestinationTransformation::Base64Decoding { .. }]
+        ));
+    }
+
+    #[test]
+    fn reports_malformed_and_unsupported_secondary_encoding_coverage() {
+        let unsupported_html = encode("https&colon;&sol;&sol;hidden.example&unknown;");
+        let input = format!(
+            "https://top.example/?base64=aHR0cHM6Ly9oaWRkZW4uZXhhbXBsZS8===&html={unsupported_html}"
+        );
+
+        let discovery = discover(&input);
+
+        assert!(discovery.candidates.is_empty());
+        assert!(discovery.status.is_complete());
+        assert!(!discovery.encoding_coverage.is_complete());
+        assert_eq!(
+            discovery.encoding_coverage.issues(),
+            &[
+                DestinationEncodingIssueKind::MalformedBase64,
+                DestinationEncodingIssueKind::UnsupportedHtmlCharacterReference,
+            ]
+        );
+        assert_eq!(discovery.encoding_issues.len(), 2);
+        assert!(!discovery.is_complete());
+    }
+
+    #[test]
+    fn reports_secondary_decoded_output_limit_as_incomplete() {
+        let input = format!("https://top.example/?payload={}", "A".repeat(12 * 1024));
+
+        let discovery = discover(&input);
+
+        assert!(discovery.candidates.is_empty());
+        assert!(
+            discovery
+                .status
+                .limits()
+                .contains(&DestinationDiscoveryLimit::SecondaryDecodedOutputLength)
+        );
+        assert!(!discovery.is_complete());
+    }
+
+    #[test]
+    fn benign_encoded_text_binary_and_ambiguous_strings_do_not_create_candidates() {
+        let discovery = discover(concat!(
+            "https://top.example/?text=aGVsbG8gd29ybGQ=",
+            "&binary=________",
+            "&identifier=ABCDEF12",
+            "&relative=L2xvY2FsL3BhdGg="
+        ));
+
+        assert!(discovery.candidates.is_empty());
+        assert!(discovery.is_complete());
+    }
+
+    #[test]
+    fn rejects_control_characters_after_html_decoding() {
+        let value = encode("https&colon;&sol;&sol;example.test&#10;path");
+        let discovery = discover(&format!("https://top.example/?value={value}"));
+
+        assert!(discovery.candidates.is_empty());
+        assert!(discovery.is_complete());
     }
 }

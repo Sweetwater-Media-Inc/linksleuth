@@ -327,6 +327,117 @@ fn cli_detailed_mode_shows_nested_destination_provenance() {
 }
 
 #[test]
+fn cli_detailed_mode_shows_secondary_encoding_provenance() {
+    let input = concat!(
+        "https://top.example/?payload=aHR0cHM6Ly9iYXNlNjQuZXhhbXBsZS9wYXRoLW9uZQ%3D%3D",
+        "&markup=https%26colon%3B%26sol%3B%26sol%3Bhtml.example%26sol%3Bpath"
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .arg(input)
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Candidate hostname: base64.example"));
+    assert!(stdout.contains("Candidate hostname: html.example"));
+    assert!(stdout.contains("1. Percent decoding (1 pass)"));
+    assert!(stdout.contains("2. Base64 decoding"));
+    assert!(stdout.contains("padded"));
+    assert!(stdout.contains("2. HTML character-reference decoding"));
+    assert!(stdout.contains("Potential destination evidence only"));
+    assert!(!stdout.contains("redirected to"));
+    assert!(!stdout.contains("final destination"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn cli_shareable_mode_summarizes_encoded_candidates_without_evidence() {
+    let input = concat!(
+        "https://private.example.com/?payload=aHR0cHM6Ly9iYXNlNjQtc2VjcmV0LmV4YW1wbGUvcHJpdmF0ZQ%3D%3D",
+        "&markup=https%26colon%3B%26sol%3B%26sol%3Bhtml-secret.example%26sol%3Bprivate"
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .args(["--shareable", input])
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Hostname: [REDACTED]"));
+    assert!(stdout.contains("Potential embedded destinations: 2"));
+    assert!(stdout.contains("Base64-encoded candidates: 1"));
+    assert!(stdout.contains("HTML-reference-encoded candidates: 1"));
+    assert!(stdout.contains("Potential Base64-encoded destination"));
+    assert!(stdout.contains("Potential HTML-reference-encoded destination"));
+    assert!(!stdout.contains("private.example.com"));
+    assert!(!stdout.contains("base64-secret.example"));
+    assert!(!stdout.contains("html-secret.example"));
+    assert!(!stdout.contains("payload"));
+    assert!(!stdout.contains("markup"));
+    assert!(!stdout.contains("aHR0cHM6"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn cli_encoded_hostname_opt_in_reveals_only_original_hostname() {
+    let input = concat!(
+        "https://private.example.com/?payload=",
+        "aHR0cHM6Ly9lbWJlZGRlZC1zZWNyZXQuZXhhbXBsZS9wcml2YXRl"
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .args(["--shareable", "--include-hostname", input])
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Hostname: private.example.com"));
+    assert_eq!(stdout.matches("private.example.com").count(), 1);
+    assert!(!stdout.contains("embedded-secret.example"));
+    assert!(!stdout.contains("/private"));
+    assert!(!stdout.contains("aHR0cHM6"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn cli_reports_fixed_secondary_encoding_coverage_without_evidence() {
+    let input = concat!(
+        "https://private.example.com/?broken=aHR0cHM6Ly9oaWRkZW4uZXhhbXBsZS8%3D%3D%3D",
+        "&markup=https%26colon%3B%26sol%3B%26sol%3Bhidden.example%26unsupported%3B"
+    );
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .args(["--shareable", input])
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Destination discovery: incomplete"));
+    assert!(stdout.contains("Destination encoding analysis incomplete"));
+    assert!(stdout.contains("malformed alphabet, padding, or trailing bits"));
+    assert!(stdout.contains("outside the supported URL-syntax set"));
+    assert!(!stdout.contains("private.example.com"));
+    assert!(!stdout.contains("hidden.example"));
+    assert!(!stdout.contains("broken"));
+    assert!(!stdout.contains("markup"));
+    assert!(!stdout.contains("aHR0cHM6"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
 fn cli_detailed_mode_explains_unsupported_normalization_coverage() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
         .arg("https:////example.com/public/%2e%2e/admin")

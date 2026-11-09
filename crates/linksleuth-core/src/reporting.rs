@@ -2,7 +2,10 @@ use std::fmt;
 
 use crate::analysis::AnalysisReport;
 use crate::decoder::DecodingStatus;
-use crate::destinations::{DestinationDiscoveryStatus, DestinationReferenceKind};
+use crate::destinations::{
+    DestinationDiscoveryStatus, DestinationEncodingCoverage, DestinationReferenceKind,
+    DestinationTransformation,
+};
 use crate::normalization::{NormalizationKind, OriginalPathAnalysis};
 
 #[derive(Clone, PartialEq, Eq)]
@@ -14,7 +17,11 @@ pub struct ShareableReport {
     pub embedded_destination_count: usize,
     pub nested_destination_count: usize,
     pub protocol_relative_destination_count: usize,
+    pub base64_destination_count: usize,
+    pub html_character_reference_destination_count: usize,
+    pub destination_encoding_issue_count: usize,
     pub destination_discovery_status: DestinationDiscoveryStatus,
+    pub destination_encoding_coverage: DestinationEncodingCoverage,
     pub findings: Vec<ShareableFinding>,
 }
 
@@ -40,9 +47,22 @@ impl fmt::Debug for ShareableReport {
                 "protocol_relative_destination_count",
                 &self.protocol_relative_destination_count,
             )
+            .field("base64_destination_count", &self.base64_destination_count)
+            .field(
+                "html_character_reference_destination_count",
+                &self.html_character_reference_destination_count,
+            )
+            .field(
+                "destination_encoding_issue_count",
+                &self.destination_encoding_issue_count,
+            )
             .field(
                 "destination_discovery_status",
                 &self.destination_discovery_status,
+            )
+            .field(
+                "destination_encoding_coverage",
+                &self.destination_encoding_coverage,
             )
             .field("findings", &self.findings)
             .finish()
@@ -78,9 +98,12 @@ pub enum ShareableFindingKind {
     EncodedParentDirectorySegment,
     PotentialEmbeddedDestination,
     PotentialProtocolRelativeReference,
+    PotentialBase64EncodedDestination,
+    PotentialHtmlCharacterReferenceEncodedDestination,
     MalformedPercentEncoding,
     DecodingPassLimitReached,
     DestinationDiscoveryIncomplete,
+    DestinationEncodingAnalysisIncomplete,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -102,10 +125,19 @@ impl ShareableFinding {
             ShareableFindingKind::PotentialProtocolRelativeReference => {
                 "Potential protocol-relative reference"
             }
+            ShareableFindingKind::PotentialBase64EncodedDestination => {
+                "Potential Base64-encoded destination"
+            }
+            ShareableFindingKind::PotentialHtmlCharacterReferenceEncodedDestination => {
+                "Potential HTML-reference-encoded destination"
+            }
             ShareableFindingKind::MalformedPercentEncoding => "Malformed percent encoding",
             ShareableFindingKind::DecodingPassLimitReached => "Decoding pass limit reached",
             ShareableFindingKind::DestinationDiscoveryIncomplete => {
                 "Destination discovery incomplete"
+            }
+            ShareableFindingKind::DestinationEncodingAnalysisIncomplete => {
+                "Destination encoding analysis incomplete"
             }
         }
     }
@@ -124,6 +156,14 @@ impl ShareableFinding {
                 "A protocol-relative URL reference was identified within",
                 "a query parameter. No scheme or redirect has been verified.",
             ],
+            ShareableFindingKind::PotentialBase64EncodedDestination => &[
+                "A complete destination reference was identified after bounded",
+                "Base64 decoding. Encoding does not establish intent or navigation.",
+            ],
+            ShareableFindingKind::PotentialHtmlCharacterReferenceEncodedDestination => &[
+                "A complete destination reference was identified after interpreting",
+                "supported HTML references. No navigation has been verified.",
+            ],
             ShareableFindingKind::MalformedPercentEncoding => &[
                 "One or more query parameters contained malformed percent",
                 "encoding. The original text was preserved during analysis.",
@@ -135,6 +175,10 @@ impl ShareableFinding {
             ShareableFindingKind::DestinationDiscoveryIncomplete => &[
                 "One or more destination discovery limits were reached.",
                 "Additional potential destinations may remain undiscovered.",
+            ],
+            ShareableFindingKind::DestinationEncodingAnalysisIncomplete => &[
+                "One or more supported encoding interpretations were malformed",
+                "or unsupported. Additional destination evidence may remain.",
             ],
         }
     }
@@ -168,6 +212,40 @@ pub fn create_shareable_report_with_options(
         .candidates
         .iter()
         .filter(|candidate| candidate.reference.kind == DestinationReferenceKind::ProtocolRelative)
+        .count();
+    let base64_destination_count = report
+        .destination_discovery
+        .candidates
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .provenance
+                .transformations
+                .iter()
+                .any(|transformation| {
+                    matches!(
+                        transformation,
+                        DestinationTransformation::Base64Decoding { .. }
+                    )
+                })
+        })
+        .count();
+    let html_character_reference_destination_count = report
+        .destination_discovery
+        .candidates
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .provenance
+                .transformations
+                .iter()
+                .any(|transformation| {
+                    matches!(
+                        transformation,
+                        DestinationTransformation::HtmlCharacterReferenceDecoding { .. }
+                    )
+                })
+        })
         .count();
     let has_malformed_percent_encoding = report.parameters.iter().any(|parameter| {
         parameter
@@ -205,6 +283,18 @@ pub fn create_shareable_report_with_options(
         ));
     }
 
+    if base64_destination_count > 0 {
+        findings.push(ShareableFinding::new(
+            ShareableFindingKind::PotentialBase64EncodedDestination,
+        ));
+    }
+
+    if html_character_reference_destination_count > 0 {
+        findings.push(ShareableFinding::new(
+            ShareableFindingKind::PotentialHtmlCharacterReferenceEncodedDestination,
+        ));
+    }
+
     if has_malformed_percent_encoding {
         findings.push(ShareableFinding::new(
             ShareableFindingKind::MalformedPercentEncoding,
@@ -223,6 +313,12 @@ pub fn create_shareable_report_with_options(
         ));
     }
 
+    if !report.destination_discovery.encoding_coverage.is_complete() {
+        findings.push(ShareableFinding::new(
+            ShareableFindingKind::DestinationEncodingAnalysisIncomplete,
+        ));
+    }
+
     ShareableReport {
         hostname: if options.include_hostname {
             report.url.hostname.clone()
@@ -235,7 +331,11 @@ pub fn create_shareable_report_with_options(
         embedded_destination_count,
         nested_destination_count,
         protocol_relative_destination_count,
+        base64_destination_count,
+        html_character_reference_destination_count,
+        destination_encoding_issue_count: report.destination_discovery.encoding_issues.len(),
         destination_discovery_status: report.destination_discovery.status.clone(),
+        destination_encoding_coverage: report.destination_discovery.encoding_coverage.clone(),
         findings,
     }
 }
@@ -271,7 +371,11 @@ mod tests {
         assert_eq!(shared.embedded_destination_count, 0);
         assert_eq!(shared.nested_destination_count, 0);
         assert_eq!(shared.protocol_relative_destination_count, 0);
+        assert_eq!(shared.base64_destination_count, 0);
+        assert_eq!(shared.html_character_reference_destination_count, 0);
+        assert_eq!(shared.destination_encoding_issue_count, 0);
         assert!(shared.destination_discovery_status.is_complete());
+        assert!(shared.destination_encoding_coverage.is_complete());
         assert!(shared.findings.is_empty());
     }
 
@@ -397,6 +501,76 @@ mod tests {
     }
 
     #[test]
+    fn shareable_report_summarizes_encoded_candidates_without_evidence() {
+        let html = url::form_urlencoded::byte_serialize(
+            "https&colon;&sol;&sol;html-secret.example&sol;private".as_bytes(),
+        )
+        .collect::<String>();
+        let input = format!(
+            "https://private.example.com/?payload=aHR0cHM6Ly9iYXNlNjQtc2VjcmV0LmV4YW1wbGUvcHJpdmF0ZQ==&markup={html}"
+        );
+        let report = analyze_url(&input).unwrap();
+
+        let shared = create_shareable_report_with_options(
+            &report,
+            ShareableReportOptions::new().with_hostname(),
+        );
+
+        assert_eq!(shared.hostname, "private.example.com");
+        assert_eq!(shared.embedded_destination_count, 2);
+        assert_eq!(shared.base64_destination_count, 1);
+        assert_eq!(shared.html_character_reference_destination_count, 1);
+        assert_eq!(shared.destination_encoding_issue_count, 0);
+        assert!(shared.destination_encoding_coverage.is_complete());
+        assert!(shared.findings.contains(&ShareableFinding::new(
+            ShareableFindingKind::PotentialBase64EncodedDestination
+        )));
+        assert!(shared.findings.contains(&ShareableFinding::new(
+            ShareableFindingKind::PotentialHtmlCharacterReferenceEncodedDestination
+        )));
+
+        let fields = format!(
+            "{}:{}:{}:{:?}:{:?}",
+            shared.base64_destination_count,
+            shared.html_character_reference_destination_count,
+            shared.destination_encoding_issue_count,
+            shared.destination_encoding_coverage,
+            shared.findings,
+        );
+        let debug = format!("{shared:?}");
+        for output in [&fields, &debug] {
+            assert!(!output.contains("base64-secret.example"));
+            assert!(!output.contains("html-secret.example"));
+            assert!(!output.contains("private"));
+            assert!(!output.contains("payload"));
+            assert!(!output.contains("markup"));
+            assert!(!output.contains("aHR0cHM6"));
+        }
+    }
+
+    #[test]
+    fn shareable_report_exposes_only_fixed_encoding_coverage_metadata() {
+        let html = url::form_urlencoded::byte_serialize(
+            "https&colon;&sol;&sol;hidden.example&unsupported;".as_bytes(),
+        )
+        .collect::<String>();
+        let report = analyze_url(&format!("https://private.example.com/?secret={html}")).unwrap();
+
+        let shared = create_shareable_report(&report);
+
+        assert_eq!(shared.destination_encoding_issue_count, 1);
+        assert!(!shared.destination_encoding_coverage.is_complete());
+        assert!(shared.findings.contains(&ShareableFinding::new(
+            ShareableFindingKind::DestinationEncodingAnalysisIncomplete
+        )));
+        let output = format!("{shared:?}");
+        assert!(!output.contains("private.example.com"));
+        assert!(!output.contains("hidden.example"));
+        assert!(!output.contains("unsupported"));
+        assert!(!output.contains("secret"));
+    }
+
+    #[test]
     fn shareable_report_preserves_original_analysis() {
         let report =
             analyze_url("https://example.com/private/document/123?token=secret123").unwrap();
@@ -445,7 +619,7 @@ mod tests {
 
         let shared = create_shareable_report(&report);
         let field_output = format!(
-            "{}:{}:{:?}:{}:{}:{}:{}:{:?}:{:?}",
+            "{}:{}:{:?}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}",
             shared.hostname,
             shared.query_parameter_count,
             shared.original_path_analysis,
@@ -453,7 +627,11 @@ mod tests {
             shared.embedded_destination_count,
             shared.nested_destination_count,
             shared.protocol_relative_destination_count,
+            shared.base64_destination_count,
+            shared.html_character_reference_destination_count,
+            shared.destination_encoding_issue_count,
             shared.destination_discovery_status,
+            shared.destination_encoding_coverage,
             shared.findings,
         );
         let debug_output = format!("{shared:?}");

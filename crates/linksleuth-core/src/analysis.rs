@@ -166,6 +166,26 @@ mod tests {
     }
 
     #[test]
+    fn discovers_encoded_candidate_without_changing_legacy_field() {
+        let report = analyze_url(
+            "https://example.com/?payload=aHR0cHM6Ly9lbmNvZGVkLmV4YW1wbGUvcGF0aA%3D%3D",
+        )
+        .unwrap();
+
+        assert!(report.parameters[0].destination.is_none());
+        assert_eq!(report.destination_discovery.candidates.len(), 1);
+        let candidate = &report.destination_discovery.candidates[0];
+        assert_eq!(candidate.reference.hostname, "encoded.example");
+        assert!(matches!(
+            candidate.provenance.transformations.as_slice(),
+            [
+                crate::destinations::DestinationTransformation::PercentDecoding { passes: 1 },
+                crate::destinations::DestinationTransformation::Base64Decoding { .. }
+            ]
+        ));
+    }
+
+    #[test]
     fn includes_normalization_findings_in_report() {
         let report = analyze_url(
             "https://example.com/public/%2e%2e/admin?target=https%3A%2F%2Fother.example",

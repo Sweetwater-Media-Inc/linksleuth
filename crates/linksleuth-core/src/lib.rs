@@ -1,6 +1,7 @@
 pub mod analysis;
 pub mod decoder;
 pub mod destinations;
+pub mod encodings;
 pub mod normalization;
 pub mod parser;
 pub mod reporting;

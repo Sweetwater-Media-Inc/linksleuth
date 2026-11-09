@@ -1,6 +1,9 @@
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::decoder::DecodingStatus;
-use linksleuth_core::destinations::{DestinationReferenceKind, DestinationScheme};
+use linksleuth_core::destinations::{
+    DestinationReferenceKind, DestinationScheme, DestinationTransformation,
+};
+use linksleuth_core::encodings::{Base64Alphabet, Base64Padding};
 use linksleuth_core::normalization::OriginalPathAnalysis;
 use linksleuth_core::parser::UrlError;
 use linksleuth_core::reporting::{
@@ -66,10 +69,27 @@ fn main() {
                         shared.protocol_relative_destination_count
                     );
                 }
-                if !shared.destination_discovery_status.is_complete() {
+                if shared.base64_destination_count > 0 {
+                    println!(
+                        "Base64-encoded candidates: {}",
+                        shared.base64_destination_count
+                    );
+                }
+                if shared.html_character_reference_destination_count > 0 {
+                    println!(
+                        "HTML-reference-encoded candidates: {}",
+                        shared.html_character_reference_destination_count
+                    );
+                }
+                if !shared.destination_discovery_status.is_complete()
+                    || !shared.destination_encoding_coverage.is_complete()
+                {
                     println!("Destination discovery: incomplete");
                     for limit in shared.destination_discovery_status.limits() {
                         println!("  Note: {}", limit.explanation());
+                    }
+                    for issue in shared.destination_encoding_coverage.issues() {
+                        println!("  Note: {}", issue.explanation());
                     }
                 }
 
@@ -164,7 +184,7 @@ fn main() {
             }
 
             if !report.destination_discovery.candidates.is_empty()
-                || !report.destination_discovery.status.is_complete()
+                || !report.destination_discovery.is_complete()
             {
                 println!("\nPotential Destinations");
                 println!("----------------------");
@@ -203,6 +223,43 @@ fn main() {
                     if let Some(parent) = candidate.provenance.parent_candidate_index {
                         println!("  Parent candidate: {}", parent + 1);
                     }
+                    if candidate.provenance.transformations.is_empty() {
+                        println!("  Transformations: None");
+                    } else {
+                        println!("  Transformations:");
+                        for (step, transformation) in
+                            candidate.provenance.transformations.iter().enumerate()
+                        {
+                            match transformation {
+                                DestinationTransformation::PercentDecoding { passes } => println!(
+                                    "    {}. Percent decoding ({} {})",
+                                    step + 1,
+                                    passes,
+                                    if *passes == 1 { "pass" } else { "passes" }
+                                ),
+                                DestinationTransformation::Base64Decoding { alphabet, padding } => {
+                                    println!(
+                                        "    {}. Base64 decoding ({}, {})",
+                                        step + 1,
+                                        base64_alphabet_label(*alphabet),
+                                        base64_padding_label(*padding)
+                                    )
+                                }
+                                DestinationTransformation::HtmlCharacterReferenceDecoding {
+                                    reference_count,
+                                } => println!(
+                                    "    {}. HTML character-reference decoding ({} {})",
+                                    step + 1,
+                                    reference_count,
+                                    if *reference_count == 1 {
+                                        "reference"
+                                    } else {
+                                        "references"
+                                    }
+                                ),
+                            }
+                        }
+                    }
                     println!(
                         "  Decoding passes: {}",
                         candidate.provenance.decoding.steps.len()
@@ -214,6 +271,23 @@ fn main() {
                     println!(
                         "  Note: Potential destination evidence only; no redirect was verified."
                     );
+                }
+
+                for issue in &report.destination_discovery.encoding_issues {
+                    println!("\nEncoding analysis incomplete");
+                    println!(
+                        "  Top-level parameter position: {}",
+                        issue.top_level_parameter_index + 1
+                    );
+                    println!(
+                        "  Source parameter position: {}",
+                        issue.source_parameter_index + 1
+                    );
+                    println!("  Discovery depth: {}", issue.depth);
+                    if let Some(parent) = issue.parent_candidate_index {
+                        println!("  Parent candidate: {}", parent + 1);
+                    }
+                    println!("  Reason: {}", issue.kind.explanation());
                 }
 
                 if !report.destination_discovery.status.is_complete() {
@@ -247,5 +321,20 @@ fn destination_kind_label(kind: DestinationReferenceKind) -> &'static str {
             scheme: DestinationScheme::Https,
         } => "Absolute HTTPS candidate URL",
         DestinationReferenceKind::ProtocolRelative => "Protocol-relative reference",
+    }
+}
+
+fn base64_alphabet_label(alphabet: Base64Alphabet) -> &'static str {
+    match alphabet {
+        Base64Alphabet::Standard => "standard alphabet",
+        Base64Alphabet::UrlSafe => "URL-safe alphabet",
+        Base64Alphabet::Ambiguous => "alphabet shared by standard and URL-safe Base64",
+    }
+}
+
+fn base64_padding_label(padding: Base64Padding) -> &'static str {
+    match padding {
+        Base64Padding::Padded => "padded",
+        Base64Padding::Unpadded => "unpadded",
     }
 }
