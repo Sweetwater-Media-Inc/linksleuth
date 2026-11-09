@@ -5,6 +5,10 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 ## [Unreleased]
 
 ### Added
+- Milestone 6.14: additive `consumer` module with schema-versioned `ConsumerReport` contract (schema 1, independent of crate version), private fields/accessors, non-exhaustive extensible enums, stable observation identifiers, deterministic ordering and aggregated occurrence counts.
+- Consumer-facing four-stage completeness model (original path, percent decoding, destination traversal, secondary encoding) with structured stage statuses and fixed explanations; completeness is only within supported scope.
+- Independent opt-in controls for original hostname and detailed evidence, with evidence references separated from actual evidence values and redacted diagnostic `Debug` output.
+- Synthetic regression corpus expanded from 27 to 42 cases; test harness reports 21 expected positive, 21 expected negative, zero unexpected candidates, zero missed candidates, and seven incomplete/unsupported cases against corpus expectations (144 total reported local tests).
 - Milestone 6.13: bounded whole-value Base64 decoding (standard, URL-safe, padded/unpadded; ambiguous alphabet classification) with strict padding, trailing-bit and UTF-8 validation, plus conservative HTML character-reference decoding (decimal, hexadecimal, and exactly `&colon;`, `&sol;`, `&amp;`).
 - Typed secondary encoding results, coverage issues, and ordered `DestinationTransformation` provenance integrated into existing breadth-first nested destination discovery. One secondary decoding stage may follow bounded percent decoding per value.
 - Secondary decoding limits: 16 KiB encoded input, 8 KiB decoded output, and 32-byte HTML-reference token scanning; explicit coverage and limit status keep unexamined or malformed inputs distinct from negative findings.
@@ -42,6 +46,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Expanded CLI tests for exact privacy-reduced output, no URL-derived evidence in shareable stdout/stderr, hostname opt-in, invalid arguments, and unchanged detailed output.
 
 ### Changed
+- Milestone 6.14 preserves existing detailed analysis, shareable report API, and CLI output unchanged; the new consumer API is the recommended integration surface for Clue and future consumers. No serialization/wire format was introduced and real-world false-positive rates have not been measured.
 - Milestone 6.13: `DestinationDiscovery` carries encoding coverage and issues alongside resource-limit status; use `DestinationDiscovery::is_complete()` to consider both. Several public report/provenance structs gained fields and enums gained variants, potentially affecting downstream struct literals or exhaustive matches.
 - Destination classification now conservatively rejects control characters in candidate references.
 - Milestone 6.12: `AnalysisReport` includes `destination_discovery`. `ShareableReport` adds nested/protocol-relative counts and discovery status, while the legacy direct absolute destination API remains available. Added public fields and enum variants may affect downstream struct literals or exhaustive matches.
