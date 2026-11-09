@@ -2,12 +2,13 @@ use std::fmt;
 
 use crate::analysis::AnalysisReport;
 use crate::decoder::DecodingStatus;
-use crate::normalization::NormalizationKind;
+use crate::normalization::{NormalizationKind, OriginalPathAnalysis};
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct ShareableReport {
     pub hostname: String,
     pub query_parameter_count: usize,
+    pub original_path_analysis: OriginalPathAnalysis,
     pub normalization_finding_count: usize,
     pub embedded_destination_count: usize,
     pub findings: Vec<ShareableFinding>,
@@ -21,6 +22,7 @@ impl fmt::Debug for ShareableReport {
             .debug_struct("ShareableReport")
             .field("hostname", &"[REDACTED]")
             .field("query_parameter_count", &self.query_parameter_count)
+            .field("original_path_analysis", &self.original_path_analysis)
             .field(
                 "normalization_finding_count",
                 &self.normalization_finding_count,
@@ -179,6 +181,7 @@ pub fn create_shareable_report_with_options(
             "[REDACTED]".to_string()
         },
         query_parameter_count: report.parameters.len(),
+        original_path_analysis: report.original_path_analysis,
         normalization_finding_count: report.normalization_findings.len(),
         embedded_destination_count,
         findings,
@@ -208,6 +211,10 @@ mod tests {
 
         assert_eq!(shared.hostname, "[REDACTED]");
         assert_eq!(shared.query_parameter_count, 2);
+        assert_eq!(
+            shared.original_path_analysis,
+            OriginalPathAnalysis::Examined
+        );
         assert_eq!(shared.normalization_finding_count, 0);
         assert_eq!(shared.embedded_destination_count, 0);
         assert!(shared.findings.is_empty());
@@ -275,6 +282,10 @@ mod tests {
         let shared = create_shareable_report(&report);
 
         assert!(shared.findings.is_empty());
+        assert_eq!(
+            shared.original_path_analysis,
+            OriginalPathAnalysis::Examined
+        );
         assert_eq!(shared.normalization_finding_count, 0);
         assert_eq!(shared.embedded_destination_count, 0);
     }
@@ -317,6 +328,27 @@ mod tests {
     }
 
     #[test]
+    fn shareable_report_preserves_unsupported_path_coverage_without_raw_evidence() {
+        let report =
+            analyze_url("https:////private.example.com/public/%2e%2e/admin?token=secret123")
+                .unwrap();
+
+        let shared = create_shareable_report(&report);
+
+        assert!(matches!(
+            shared.original_path_analysis,
+            OriginalPathAnalysis::Unsupported { .. }
+        ));
+        assert_eq!(shared.normalization_finding_count, 0);
+        assert!(shared.findings.is_empty());
+
+        let output = format!("{shared:?}");
+        assert!(!output.contains("private.example.com"));
+        assert!(!output.contains("/public/"));
+        assert!(!output.contains("secret123"));
+    }
+
+    #[test]
     fn default_report_fields_and_debug_output_exclude_sensitive_url_evidence() {
         let report = analyze_url(
             "https://private.example.com/public/%2e%2e/admin?target=https%3A%2F%2Fother.example%2Fprivate&token=secret123&email=person@example.com",
@@ -325,9 +357,10 @@ mod tests {
 
         let shared = create_shareable_report(&report);
         let field_output = format!(
-            "{}:{}:{}:{}:{:?}",
+            "{}:{}:{:?}:{}:{}:{:?}",
             shared.hostname,
             shared.query_parameter_count,
+            shared.original_path_analysis,
             shared.normalization_finding_count,
             shared.embedded_destination_count,
             shared.findings,

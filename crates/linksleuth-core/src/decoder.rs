@@ -6,16 +6,22 @@ pub enum DecodingMethod {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodingStep {
     pub method: DecodingMethod,
+    /// Exact input to this decoding pass.
     pub input: String,
+    /// Output produced by this decoding pass and input to the next pass.
     pub output: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodingResult {
+    /// Exact string passed to [`decode_percent`].
     pub original: String,
+    /// Final output after bounded iterative decoding.
     pub decoded: String,
+    /// Ordered input/output provenance for passes that changed the text.
     pub steps: Vec<DecodingStep>,
     pub status: DecodingStatus,
+    /// Malformed percent observations with one-based pass and byte offset.
     pub warnings: Vec<DecodingWarning>,
 }
 
@@ -33,14 +39,25 @@ pub enum DecodingStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodingWarning {
+    /// A malformed percent sequence observed at a UTF-8 byte offset.
     MalformedPercentEncoding { pass: usize, offset: usize },
 }
 
-const MAX_INPUT_LENGTH: usize = 16 * 1024;
-const MAX_DECODE_PASSES: usize = 3;
+/// Maximum decoder input size, measured in UTF-8 bytes.
+pub const MAX_DECODER_INPUT_BYTES: usize = 16 * 1024;
 
+/// Maximum number of iterative percent-decoding passes.
+pub const MAX_DECODE_PASSES: usize = 3;
+
+/// Iteratively percent-decodes exact raw query value text.
+///
+/// This is deliberately distinct from HTML form decoding: `+` remains `+`
+/// here, while the parser's form-decoded query representation treats it as a
+/// space. Each successful transformation is retained in `steps`. Work is
+/// bounded by [`MAX_DECODER_INPUT_BYTES`] and [`MAX_DECODE_PASSES`], and
+/// percent decoding cannot expand the input byte length.
 pub fn decode_percent(input: &str) -> Result<DecodingResult, DecodeError> {
-    if input.len() > MAX_INPUT_LENGTH {
+    if input.len() > MAX_DECODER_INPUT_BYTES {
         return Err(DecodeError::InputTooLong);
     }
 
@@ -186,6 +203,23 @@ mod tests {
     }
 
     #[test]
+    fn decodes_multibyte_utf8_with_mixed_hex_case() {
+        let result = decode_percent("%e9%9B%aa-%E2%98%83-%4a%4A").unwrap();
+
+        assert_eq!(result.decoded, "雪-☃-JJ");
+        assert_eq!(result.steps.len(), 1);
+        assert_eq!(result.steps[0].input, "%e9%9B%aa-%E2%98%83-%4a%4A");
+        assert_eq!(result.steps[0].output, "雪-☃-JJ");
+    }
+
+    #[test]
+    fn decodes_encoded_query_delimiters_without_form_decoding_plus() {
+        let result = decode_percent("a%26b%3Dc%3Fnext+value").unwrap();
+
+        assert_eq!(result.decoded, "a&b=c?next+value");
+    }
+
+    #[test]
     fn respects_pass_limit() {
         let result = decode_percent("%2525252541").unwrap();
 
@@ -197,6 +231,24 @@ mod tests {
     fn rejects_oversized_input() {
         let input = "a".repeat(20_000);
 
+        assert_eq!(decode_percent(&input), Err(DecodeError::InputTooLong));
+    }
+
+    #[test]
+    fn accepts_decoder_input_at_byte_limit_and_rejects_next_byte() {
+        let at_limit = "a".repeat(MAX_DECODER_INPUT_BYTES);
+        let over_limit = format!("{at_limit}a");
+
+        assert!(decode_percent(&at_limit).is_ok());
+        assert_eq!(decode_percent(&over_limit), Err(DecodeError::InputTooLong));
+    }
+
+    #[test]
+    fn decoder_limit_counts_unicode_bytes() {
+        let input = "雪".repeat((MAX_DECODER_INPUT_BYTES / 3) + 1);
+
+        assert!(input.chars().count() < MAX_DECODER_INPUT_BYTES);
+        assert!(input.len() > MAX_DECODER_INPUT_BYTES);
         assert_eq!(decode_percent(&input), Err(DecodeError::InputTooLong));
     }
 
@@ -258,5 +310,29 @@ mod tests {
             result.warnings,
             vec![DecodingWarning::MalformedPercentEncoding { pass: 2, offset: 2 }]
         );
+    }
+
+    #[test]
+    fn warning_offsets_count_utf8_bytes() {
+        let result = decode_percent("雪%ZZ").unwrap();
+
+        assert_eq!(
+            result.warnings,
+            vec![DecodingWarning::MalformedPercentEncoding { pass: 1, offset: 3 }]
+        );
+    }
+
+    #[test]
+    fn decoding_steps_do_not_expand_byte_length() {
+        let result = decode_percent("%2525252541").unwrap();
+
+        assert_eq!(result.steps.len(), MAX_DECODE_PASSES);
+        assert!(
+            result
+                .steps
+                .iter()
+                .all(|step| step.output.len() <= step.input.len())
+        );
+        assert_eq!(result.status, DecodingStatus::PassLimitReached);
     }
 }

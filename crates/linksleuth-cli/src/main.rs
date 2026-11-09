@@ -1,5 +1,6 @@
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::decoder::DecodingStatus;
+use linksleuth_core::normalization::OriginalPathAnalysis;
 use linksleuth_core::parser::UrlError;
 use linksleuth_core::reporting::{
     ShareableReportOptions, create_shareable_report, create_shareable_report_with_options,
@@ -42,10 +43,15 @@ fn main() {
                 println!("----------------------------");
                 println!("Hostname: {}", shared.hostname);
                 println!("Query parameters: {}", shared.query_parameter_count);
-                println!(
-                    "Normalization findings: {}",
-                    shared.normalization_finding_count
-                );
+                match shared.original_path_analysis {
+                    OriginalPathAnalysis::Examined => println!(
+                        "Normalization findings: {}",
+                        shared.normalization_finding_count
+                    ),
+                    OriginalPathAnalysis::Unsupported { .. } => {
+                        println!("Normalization findings: unavailable")
+                    }
+                }
                 println!(
                     "Potential embedded destinations: {}",
                     shared.embedded_destination_count
@@ -72,6 +78,17 @@ fn main() {
             println!("-----------------------");
             println!("Hostname: {}", report.url.hostname);
             println!("Path:     {}", report.url.path);
+
+            if matches!(
+                report.original_path_analysis,
+                OriginalPathAnalysis::Unsupported { .. }
+            ) {
+                println!("\nNormalization Analysis");
+                println!("----------------------");
+                println!(
+                    "Original path evidence could not be interpreted confidently; no normalization conclusion is available."
+                );
+            }
 
             if !report.normalization_findings.is_empty() {
                 println!("\nNormalization Findings");
@@ -140,6 +157,7 @@ fn main() {
         Err(error) => {
             let reason = match error {
                 UrlError::TooLong => "the URL exceeds the supported length",
+                UrlError::TooManyQueryParameters => "the URL contains too many query parameters",
                 UrlError::Invalid(_) => "the URL is invalid",
                 UrlError::UnsupportedScheme => "the URL scheme is not supported",
                 UrlError::MissingHostname => "the URL has no hostname",

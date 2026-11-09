@@ -1,17 +1,33 @@
 use url::{ParseError, Url};
 
+/// Maximum submitted URL size, measured in UTF-8 bytes.
+pub const MAX_URL_LENGTH_BYTES: usize = 16 * 1024;
+
+/// Maximum number of non-empty query parameter entries retained from one URL.
+pub const MAX_QUERY_PARAMETERS: usize = 256;
+
 #[derive(Debug, PartialEq)]
 pub struct QueryParameter {
+    /// Form-decoded parameter name. `+` is interpreted as a space.
     pub name: String,
+    /// Exact parameter name text from the submitted URL.
     pub raw_name: String,
+    /// Form-decoded parameter value. `+` is interpreted as a space.
     pub value: String,
+    /// Exact parameter value text from the submitted URL.
+    ///
+    /// Iterative LinkSleuth percent decoding starts from this representation,
+    /// not from the form-decoded `value`.
     pub raw_value: String,
+    /// Whether the submitted parameter contained a literal `=` separator.
     pub has_equals: bool,
 }
 
 #[derive(Debug)]
 pub struct ParsedUrl {
+    /// Exact submitted input, retained separately from parser normalization.
     pub original: String,
+    /// The `url` crate's normalized interpretation of the submitted input.
     pub normalized: String,
     pub scheme: String,
     pub hostname: String,
@@ -24,14 +40,14 @@ pub struct ParsedUrl {
 #[derive(Debug)]
 pub enum UrlError {
     TooLong,
+    TooManyQueryParameters,
     Invalid(ParseError),
     UnsupportedScheme,
     MissingHostname,
 }
 
 pub fn parse_url(input: &str) -> Result<ParsedUrl, UrlError> {
-    // Limit input size to 16 KiB.
-    if input.len() > 16 * 1024 {
+    if input.len() > MAX_URL_LENGTH_BYTES {
         return Err(UrlError::TooLong);
     }
 
@@ -43,9 +59,14 @@ pub fn parse_url(input: &str) -> Result<ParsedUrl, UrlError> {
 
     let hostname = url.host_str().ok_or(UrlError::MissingHostname)?.to_string();
 
-    let query_parameters = url
-        .query()
-        .unwrap_or("")
+    let raw_query = extract_original_query(input).unwrap_or("");
+    let query_parameter_count = raw_query.split('&').filter(|part| !part.is_empty()).count();
+
+    if query_parameter_count > MAX_QUERY_PARAMETERS {
+        return Err(UrlError::TooManyQueryParameters);
+    }
+
+    let query_parameters = raw_query
         .split('&')
         .filter(|part| !part.is_empty())
         .map(|part| {
@@ -84,6 +105,22 @@ pub fn parse_url(input: &str) -> Result<ParsedUrl, UrlError> {
     })
 }
 
+fn extract_original_query(input: &str) -> Option<&str> {
+    let query_start = input.find('?')?;
+    let fragment_start = input.find('#');
+
+    if fragment_start.is_some_and(|fragment_start| fragment_start < query_start) {
+        return None;
+    }
+
+    let query_and_fragment = &input[query_start + 1..];
+    let query_end = query_and_fragment
+        .find('#')
+        .unwrap_or(query_and_fragment.len());
+
+    Some(&query_and_fragment[..query_end])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,6 +154,54 @@ mod tests {
 
         assert!(matches!(parse_url(&input), Err(UrlError::TooLong)));
     }
+
+    #[test]
+    fn accepts_url_at_byte_length_limit_and_rejects_the_next_byte() {
+        let prefix = "https://example.com/";
+        let at_limit = format!(
+            "{prefix}{}",
+            "a".repeat(MAX_URL_LENGTH_BYTES - prefix.len())
+        );
+        let over_limit = format!("{at_limit}a");
+
+        assert_eq!(at_limit.len(), MAX_URL_LENGTH_BYTES);
+        assert!(parse_url(&at_limit).is_ok());
+        assert_eq!(over_limit.len(), MAX_URL_LENGTH_BYTES + 1);
+        assert!(matches!(parse_url(&over_limit), Err(UrlError::TooLong)));
+    }
+
+    #[test]
+    fn url_length_limit_uses_utf8_bytes_not_character_count() {
+        let input = format!(
+            "https://example.com/{}",
+            "雪".repeat((MAX_URL_LENGTH_BYTES / 3) + 1)
+        );
+
+        assert!(input.chars().count() < MAX_URL_LENGTH_BYTES);
+        assert!(input.len() > MAX_URL_LENGTH_BYTES);
+        assert!(matches!(parse_url(&input), Err(UrlError::TooLong)));
+    }
+
+    #[test]
+    fn enforces_query_parameter_count_boundary() {
+        let at_limit = format!(
+            "https://example.com/?{}",
+            std::iter::repeat_n("flag", MAX_QUERY_PARAMETERS)
+                .collect::<Vec<_>>()
+                .join("&")
+        );
+        let over_limit = format!("{at_limit}&extra");
+
+        assert_eq!(
+            parse_url(&at_limit).unwrap().query_parameters.len(),
+            MAX_QUERY_PARAMETERS
+        );
+        assert!(matches!(
+            parse_url(&over_limit),
+            Err(UrlError::TooManyQueryParameters)
+        ));
+    }
+
     #[test]
     fn preserves_raw_query_values() {
         let result =
@@ -146,6 +231,43 @@ mod tests {
 
         assert_eq!(parsed.query_parameters[2].raw_value, "a%26b%3Dc");
         assert_eq!(parsed.query_parameters[2].value, "a&b=c");
+    }
+
+    #[test]
+    fn preserves_literal_unicode_and_distinguishes_form_decoding() {
+        let parsed = parse_url(
+            "https://example.com/路径?literal=雪+storm&encoded=%E9%9B%AA%2Bstorm&separator=a%26b%3Dc",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.query_parameters[0].raw_value, "雪+storm");
+        assert_eq!(parsed.query_parameters[0].value, "雪 storm");
+        assert_eq!(parsed.query_parameters[1].raw_value, "%E9%9B%AA%2Bstorm");
+        assert_eq!(parsed.query_parameters[1].value, "雪+storm");
+        assert_eq!(parsed.query_parameters[2].raw_value, "a%26b%3Dc");
+        assert_eq!(parsed.query_parameters[2].value, "a&b=c");
+        assert_eq!(
+            parsed.original,
+            "https://example.com/路径?literal=雪+storm&encoded=%E9%9B%AA%2Bstorm&separator=a%26b%3Dc"
+        );
+        assert!(parsed.normalized.contains("/%E8%B7%AF%E5%BE%84"));
+    }
+
+    #[test]
+    fn parses_unicode_hostname_as_an_internationalized_domain_name() {
+        let parsed = parse_url("https://例え.テスト/路径?term=雪").unwrap();
+
+        assert_eq!(parsed.hostname, "xn--r8jz45g.xn--zckzah");
+        assert_eq!(parsed.original, "https://例え.テスト/路径?term=雪");
+        assert_eq!(parsed.query_parameters[0].raw_value, "雪");
+        assert_eq!(parsed.query_parameters[0].value, "雪");
+    }
+
+    #[test]
+    fn does_not_treat_question_mark_after_fragment_as_query() {
+        let parsed = parse_url("https://example.com/path#fragment?not=query").unwrap();
+
+        assert!(parsed.query_parameters.is_empty());
     }
 
     #[test]

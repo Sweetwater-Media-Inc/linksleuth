@@ -205,6 +205,29 @@ fn cli_shareable_mode_omits_observations_for_ordinary_urls() {
 }
 
 #[test]
+fn cli_shareable_mode_marks_unsupported_normalization_as_unavailable() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .args([
+            "--shareable",
+            "https:////private.example.com/public/%2e%2e/admin?token=secret123",
+        ])
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Normalization findings: unavailable"));
+    assert!(!stdout.contains("Normalization findings: 0"));
+    assert!(!stdout.contains("private.example.com"));
+    assert!(!stdout.contains("/public/"));
+    assert!(!stdout.contains("secret123"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
 fn cli_default_mode_remains_detailed() {
     let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
         .arg("https://example.com/documents/123?token=secret123")
@@ -222,6 +245,24 @@ fn cli_default_mode_remains_detailed() {
     assert!(stdout.contains("Parameter: token"));
 
     assert!(!stdout.contains("LinkSleuth Shareable Summary"));
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn cli_detailed_mode_explains_unsupported_normalization_coverage() {
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .arg("https:////example.com/public/%2e%2e/admin")
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.contains("Normalization Analysis"));
+    assert!(stdout.contains("Original path evidence could not be interpreted confidently"));
+    assert!(!stdout.contains("Finding: Encoded parent-directory segment"));
     assert!(stderr.is_empty());
 }
 
@@ -310,4 +351,31 @@ fn cli_analysis_errors_do_not_echo_the_submitted_value() {
         assert!(!stderr.contains("secret123"));
         assert!(!stderr.contains("not-a-url"));
     }
+}
+
+#[test]
+fn cli_query_limit_error_does_not_echo_submitted_parameters() {
+    let query = std::iter::once("token=secret123")
+        .chain(std::iter::repeat_n("flag", 256))
+        .collect::<Vec<_>>()
+        .join("&");
+    let input = format!("https://private.example.com/?{query}");
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_linksleuth-cli"))
+        .args(["--shareable", input.as_str()])
+        .output()
+        .expect("Failed to execute LinkSleuth CLI");
+
+    assert_eq!(output.status.code(), Some(1));
+
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    assert!(stdout.is_empty());
+    assert_eq!(
+        stderr,
+        "Unable to analyze URL: the URL contains too many query parameters.\n"
+    );
+    assert!(!stderr.contains("private.example.com"));
+    assert!(!stderr.contains("secret123"));
+    assert!(!stderr.contains("flag"));
 }
