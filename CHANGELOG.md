@@ -5,6 +5,11 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 ## [Unreleased]
 
 ### Added
+- Milestone 6.15: independent `examples/consumer-app` workspace package exercising the public Rust consumer API, stage completeness, privacy defaults, and independent hostname/evidence options through integration tests.
+- Separate `crates/linksleuth-wasm` adapter with explicit browser JSON wire schema version 1 and privacy-reduced `analyze_for_browser()`/`analyze_for_browser_json()` entry points; target-specific `analyzeUrl(input)` binding for WASM.
+- Verified local `wasm32-unknown-unknown` checks/builds for core and adapter plus WASM-target test compilation. Browser execution, wasm-bindgen packaging, and JavaScript interop remain unverified.
+- Clue MVP and integration-readiness documents defining a local-first browser workflow, fixed errors, disclosure restrictions, accessibility expectations, and known verification boundaries.
+- Native consumer and adapter tests; 156 tests reportedly passed locally. Adapter adds isolated `serde`, `serde_json` and target-specific `wasm-bindgen` dependencies; Cargo.lock updated.
 - Milestone 6.14: additive `consumer` module with schema-versioned `ConsumerReport` contract (schema 1, independent of crate version), private fields/accessors, non-exhaustive extensible enums, stable observation identifiers, deterministic ordering and aggregated occurrence counts.
 - Consumer-facing four-stage completeness model (original path, percent decoding, destination traversal, secondary encoding) with structured stage statuses and fixed explanations; completeness is only within supported scope.
 - Independent opt-in controls for original hostname and detailed evidence, with evidence references separated from actual evidence values and redacted diagnostic `Debug` output.
