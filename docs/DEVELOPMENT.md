@@ -18,7 +18,8 @@ We develop in reviewed, meaningful batches. Feature scope and acceptance criteri
 - Add unit tests in the affected core module and executable CLI integration tests under `crates/linksleuth-cli/tests/` when changing user-visible behavior.
 - Include ordinary, malformed, adversarial, edge-case, and privacy cases appropriate to the change. Test both successful and rejected CLI options.
 - Preserve existing behavior and APIs unless the milestone explicitly permits a change; call out migration concerns.
-- For privacy-related output, check full stdout/stderr, `Debug` representation, sensitive markers, and opt-in boundaries. Avoid broad privacy guarantees.
+- For privacy-related output, check full stdout/stderr, `Debug` representation, sensitive markers, and opt-in boundaries.
+- When changing URL parsing or normalization, test exact submitted raw evidence, explicit examined-versus-unsupported path coverage, and the documented byte/parameter/pass boundaries. Avoid broad privacy guarantees.
 
 ## Required checks
 
@@ -31,7 +32,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 git diff --check
 ```
 
-If checks fail, fix failures or clearly report blockers. State the actual test count from the run, never an assumed count. CI is not yet established as a substitute for these checks.
+If checks fail, fix failures or clearly report blockers. State the actual test count from the run, never an assumed count. GitHub Actions CI now runs formatting, workspace tests, and Clippy on pushes and pull requests to main. Confirm each remote run's actual status; a committed workflow is not proof of a passing run.
 
 ## Delivery and Git responsibilities
 
