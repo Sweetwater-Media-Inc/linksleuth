@@ -17,6 +17,9 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 
 ## Current reporting behaviour
 
+- The `linksleuth-wasm` adapter provides a deliberately narrower browser JSON contract than the Rust consumer API: it uses default privacy-reduced options, omits hostname and detailed evidence fields, and emits fixed input/analysis error messages without reflecting submitted URL strings. Wire schema version 1 is independent of the Rust consumer schema version.
+- The intended Clue page may load its own static assets, but analysis must not send submitted URLs, resolve analyzed hosts, fetch nested candidates, preload destinations, or log URL-bearing telemetry. Browser network instrumentation has **not** yet verified this invariant; current evidence is source/dependency review and target compilation.
+
 - The new `consumer::create_consumer_report()` is privacy-reduced by default. Hostname inclusion and detailed evidence disclosure are **independent explicit opt-ins**. Detailed evidence can contain submitted, normalized, decoded or nested URL strings and must be treated as sensitive. Stable evidence references alone do not constitute permission to disclose evidence values.
 - Consumer observations use fixed titles/explanations and stable identifiers; they are structural observations, not malicious/safe classifications. `Debug` output redacts opted-in hostname and evidence. The consumer report is not guaranteed anonymous or inherently safe to publish.
 - Consumer completeness covers original-path evidence, percent decoding, destination traversal and secondary encoding independently. “Complete within supported scope” is never a guarantee of exhaustive detection or safety.
@@ -33,6 +36,7 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 - Use synthetic adversarial URLs with distinctive fake secrets for regression tests.
 - Test both shareable stdout and stderr, failures, malformed input, opt-in disclosure, and `Debug` output; check whole rendered output when useful.
 - Treat successful secondary decoding as a transformation, **not** evidence of maliciousness. A result is considered a candidate only if the entire decoded value passes conservative URL classification. Strict Base64 validation, limited named HTML references, malformed/unsupported encoding coverage, and separate resource-limit status reduce false claims; they do not guarantee absence of false positives.
+- Render browser wire strings as text data, never unsanitized `innerHTML`; never place submitted URLs in the page address, browser telemetry, asset paths or automatic network requests. Explicit local evidence disclosure remains a future separate review.
 - Re-evaluate privacy whenever adding fields, serialization, UI integrations, logging, network access, nested discovery mechanisms, or error details. Incomplete-analysis reasons must use fixed text, not URL-derived strings.
 - Distinguish an unsupported analysis case from an affirmative negative finding where the API can express that distinction.
 - The 42-case synthetic regression corpus currently has zero positive/negative expectation mismatches. These are corpus-specific assertions, not real-world false-positive measurements.
