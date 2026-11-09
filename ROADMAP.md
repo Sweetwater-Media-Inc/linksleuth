@@ -68,6 +68,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 
 ## Development documentation
 
+- [x] Add `docs/CLUE_MVP.md` and `docs/CLUE_INTEGRATION_READINESS.md`, including the confirmed WASM compilation boundary and remaining browser tasks.
+
 - [x] Document Milestone 6.14 consumer schema, disclosure boundary, stage completeness and corpus-based quality metrics.
 
 - [x] Document bounded Base64 and HTML-reference decoding, typed coverage, provenance, limitations, and regression corpus from Milestone 6.13.
@@ -80,15 +82,19 @@ This is a living plan, not a promise of release dates. Completed items describe 
 ## Next: API stabilization and detection quality
 
 - [x] Audit public API layering and add a schema-versioned, encapsulated consumer interface while retaining legacy detailed/shareable APIs.
-- [ ] Exercise the consumer API from a separate client and consider stability policy before publishing a version-1 contract.
+- [x] Exercise the public consumer API from an independent Cargo workspace package (Milestone 6.15).
+- [ ] Establish a consumer-contract compatibility policy before promoting a stable version-1 product.
 - [x] Add four-stage consumer completeness with explicit coverage/reason identifiers and status scoped to supported techniques.
 - [x] Measure expected-positive/negative corpus mismatches without claiming real-world detection accuracy.
 - [ ] Add more diverse synthetic and adversarial samples to evaluate detection quality beyond the current corpus.
-- [ ] Evaluate a future WASM integration boundary and privacy-friendly Clue MVP experience.
+- [x] Verify `wasm32-unknown-unknown` compilation, add an isolated privacy-reduced WASM adapter with versioned JSON wire output, and define Clue's local-first MVP (Milestone 6.15).
+- [ ] Package the WASM adapter with wasm-bindgen and verify JavaScript/browser-runtime integration.
 
 ## Future: Clue companion web interface
 
-- [ ] Compile the reusable analysis engine for WebAssembly where practical.
+- [x] Compile the reusable core and browser adapter for `wasm32-unknown-unknown` (compilation only; browser execution remains unverified).
+- [ ] Build a minimal static Clue prototype and exercise the WASM output in an actual browser.
+- [ ] Instrument browser-runtime tests to confirm analysis does not request submitted or discovered destinations.
 - [ ] Build a simple accessible interface to paste and inspect links.
 - [ ] Prefer local processing so submitted URLs remain on the user's device.
 - [ ] Show understandable observations with optional technical evidence details.
