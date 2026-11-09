@@ -5,6 +5,10 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 ## [Unreleased]
 
 ### Added
+- Milestone 6.11: typed original-path analysis coverage (`OriginalPathAnalysis`, `OriginalPathUnsupportedReason`, `NormalizationAnalysis`, and `analyze_normalization_with_coverage()`) exposed through analysis and privacy-reduced reports.
+- Public limits for submitted URL size (16 KiB), non-empty query parameters (256), decoder input (16 KiB), and decoding passes (three), with boundary and Unicode-byte-length tests.
+- GitHub Actions Rust CI workflow to check formatting, workspace tests, and Clippy on pushes and pull requests targeting `main`.
+- Additional tests for URL authority spelling, supported versus unsupported original path extraction, IDN/Unicode inputs, encoding and raw/form-decoded provenance, resource limits, and reporting/CLI compatibility.
 - Rust workspace with reusable `linksleuth-core` library and `linksleuth-cli` executable.
 - HTTP/HTTPS URL parsing, including query parameters and fragments.
 - Preservation of encoded and decoded query parameter values.
@@ -28,6 +32,9 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Expanded CLI tests for exact privacy-reduced output, no URL-derived evidence in shareable stdout/stderr, hostname opt-in, invalid arguments, and unchanged detailed output.
 
 ### Changed
+- Milestone 6.11: raw query values now reflect exact submitted input rather than URL-parser-normalized representations; normalized and form-decoded versions remain distinct.
+- Ambiguous original-path evidence now carries explicit unsupported coverage instead of being silently represented by an empty normalization finding list.
+- URL inputs with more than 256 non-empty query parameters now fail with `UrlError::TooManyQueryParameters`. Public report struct additions and this new error variant may require updates to downstream consumers.
 - Milestone 6.10: shareable CLI output now renders structured observations; the explicit `--shareable --include-hostname` combination can reveal the normalized hostname. Diagnostic `Debug` formatting still masks it. CLI analysis errors use fixed messages rather than echoing URL input.
 - Clarified CLI percent-decoding wording: no successfully decoded sequences, no further valid sequences detected, and pass-limit conditions are shown separately from malformed-sequence observations.
 - The CLI displays human-readable normalization finding titles and malformed percent-sequence observations with decoding pass and byte offset.
