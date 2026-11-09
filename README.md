@@ -32,10 +32,11 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Recognize forward and backslash separators in supported original-path evidence, while excluding query strings and fragments from these findings.
 - Explicitly distinguish examined original-path evidence from unsupported or ambiguous extraction using typed coverage metadata, avoiding an unsupported-is-clean interpretation.
 - Inspect URLs using a command-line tool that displays normalization findings alongside decoding results and possible embedded destinations.
+- Introduce a versioned, Rust-only `consumer` API (schema version 1) intended for Clue and third-party integrations. `create_consumer_report()` returns deterministic, fixed-text observations and four-stage analysis completeness, with no hostname or detailed evidence by default; hostname and evidence are independent explicit opt-ins.
 - Generate a structured privacy-reduced `ShareableReport` in the core library: hostname redacted by default, aggregate counts including nested/protocol-relative and Base64/HTML-reference-derived candidates, typed discovery and encoding-coverage status, and fixed-text observations without URL-derived strings. An options-aware API allows explicit hostname inclusion.
 - Use `--shareable` in the CLI to print a privacy-reduced report with readable findings, or `--shareable --include-hostname` to deliberately reveal the hostname. Tests cover privacy-sensitive output, error handling, opt-in disclosure, and detailed-mode compatibility.
 - Bound input to 16 KiB, non-empty top-level query parameters to 256, decoder input to 16 KiB, and percent decoding to three passes. Secondary decoding is limited to 16 KiB input, 8 KiB output, and 32-byte HTML reference tokens; at most one Base64 or HTML stage follows percent decoding per examined value. Nested discovery stops at depth 3, 64 candidate occurrences, or 32 parameters per nested URL, and reports incomplete coverage when appropriate.
-- Run automated tests covering parsing, decoding, Unicode, normalization coverage, resource limits, privacy-reduced reporting, and actual CLI output, including a machine-readable synthetic destination regression corpus in `crates/linksleuth-core/tests/corpus/`; GitHub Actions runs formatting, workspace tests, and Clippy on pushes and pull requests to main.
+- Run automated tests covering parsing, decoding, Unicode, normalization coverage, resource limits, privacy-reduced reporting, and actual CLI output, including a machine-readable, 42-case synthetic destination regression corpus in `crates/linksleuth-core/tests/corpus/` with aggregate positive/negative expectation checks; GitHub Actions runs formatting, workspace tests, and Clippy on pushes and pull requests to main.
 
 **Limitations:** Normalization findings currently recognize encoded parent-directory patterns only, and some unusual original-path spellings remain unsupported. Nested destination discovery examines complete candidate references in supported query values, including one bounded secondary Base64 or HTML-reference decoding stage. It does not extract arbitrary substrings, alternate secondary decoders, support every HTML entity, or verify any redirect. Privacy-reduced reporting is not a fully audited or anonymous export; counts and finding categories may reveal metadata. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
 
@@ -69,7 +70,7 @@ crates/
   linksleuth-cli/   Command-line interface
 ```
 
-The core library is independent of its CLI consumer. Planned consumers include **Clue**, a friendly web interface, and browser/email integrations.
+The core library is independent of its CLI consumer. Applications should prefer the additive, schema-versioned `linksleuth_core::consumer` API over coupling to internal analysis structures. The consumer contract has no stable JSON/wire format yet; schema version 1 is separate from the crate's development version. Planned consumers include **Clue**, a friendly web interface, and browser/email integrations.
 
 ## Roadmap and changes
 
@@ -77,7 +78,7 @@ Read [ROADMAP.md](ROADMAP.md) for priorities and [CHANGELOG.md](CHANGELOG.md) fo
 
 ## Security and privacy notes
 
-A submitted URL may contain authentication tokens, email addresses, or private document identifiers. Avoid posting sensitive URLs publicly, and do not share unsanitized CLI output. `ShareableReport` omits original URL evidence and emits only redacted hostname by default, aggregate counts, and fixed finding categories; opt-in hostname disclosure is available through reporting options or the CLI's `--shareable --include-hostname`. Reports are not guaranteed anonymous: even counts and finding kinds can be sensitive. Command-line URLs can also remain in shell history or process listings. Review `docs/SECURITY.md` for limitations.
+A submitted URL may contain authentication tokens, email addresses, or private document identifiers. Avoid posting sensitive URLs publicly, and do not share unsanitized CLI output. `ShareableReport` omits original URL evidence and emits only redacted hostname by default, aggregate counts, and fixed finding categories; opt-in hostname disclosure is available through reporting options or the CLI's `--shareable --include-hostname`. Reports are not guaranteed anonymous: even counts and finding kinds can be sensitive. Command-line URLs can also remain in shell history or process listings. The consumer API also defaults to privacy-reduced observations; explicitly requested evidence may contain sensitive URL data and must be handled accordingly. Review `docs/SECURITY.md` for limitations.
 
 Passive URL inspection can reveal syntax and embedded destinations, but **cannot guarantee a link is safe**. Continue using normal browser and email security protections.
 
