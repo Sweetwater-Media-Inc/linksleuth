@@ -21,6 +21,13 @@ We develop in reviewed, meaningful batches. Feature scope and acceptance criteri
 - For privacy-related output, check full stdout/stderr, `Debug` representation, sensitive markers, and opt-in boundaries. For the versioned `consumer` API, test default disclosure, independent hostname/evidence opt-ins, stable observation IDs, stage-level completeness and evidence-reference privacy.
 - When changing URL parsing or normalization, test exact submitted raw evidence, explicit examined-versus-unsupported path coverage, and the documented byte/parameter/pass boundaries. Avoid broad privacy guarantees.
 
+## Integration verification
+
+- For the independent consumer example, run `cargo build -p linksleuth-consumer-app` and `cargo test -p linksleuth-consumer-app`; it should only use public core consumer APIs.
+- For the browser adapter, run `cargo test -p linksleuth-wasm`, `cargo check -p linksleuth-core --target wasm32-unknown-unknown`, `cargo check -p linksleuth-wasm --target wasm32-unknown-unknown`, and `cargo build -p linksleuth-wasm --target wasm32-unknown-unknown` when the target is installed. Target compilation must not be reported as browser-runtime validation.
+- Future Clue integration must validate wasm-bindgen packaging, both schema versions, safe DOM rendering, fixed error messages and browser network activity before claiming local-browser behavior.
+- See [CLUE_MVP.md](CLUE_MVP.md) and [CLUE_INTEGRATION_READINESS.md](CLUE_INTEGRATION_READINESS.md).
+
 ## Required checks
 
 Run from workspace root:
