@@ -17,6 +17,10 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 
 ## Current reporting behaviour
 
+- The new `consumer::create_consumer_report()` is privacy-reduced by default. Hostname inclusion and detailed evidence disclosure are **independent explicit opt-ins**. Detailed evidence can contain submitted, normalized, decoded or nested URL strings and must be treated as sensitive. Stable evidence references alone do not constitute permission to disclose evidence values.
+- Consumer observations use fixed titles/explanations and stable identifiers; they are structural observations, not malicious/safe classifications. `Debug` output redacts opted-in hostname and evidence. The consumer report is not guaranteed anonymous or inherently safe to publish.
+- Consumer completeness covers original-path evidence, percent decoding, destination traversal and secondary encoding independently. “Complete within supported scope” is never a guarantee of exhaustive detection or safety.
+
 - `create_shareable_report()` uses default hostname redaction; the options-aware API can intentionally include the hostname.
 - `ShareableReport` includes typed original-path coverage, aggregate counts for total/nested/protocol-relative/Base64/HTML-derived candidates, discovery and encoding-coverage status, and fixed-text finding categories. The supported types may evolve; never interpolate raw evidence into shareable text. This is **privacy-reduced**, **not anonymous**: counts and finding categories can still expose characteristics of a submitted URL.
 - The `ShareableReport` `Debug` implementation masks its hostname even after explicit disclosure was enabled. Other report fields must remain safe by construction.
@@ -31,6 +35,7 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 - Treat successful secondary decoding as a transformation, **not** evidence of maliciousness. A result is considered a candidate only if the entire decoded value passes conservative URL classification. Strict Base64 validation, limited named HTML references, malformed/unsupported encoding coverage, and separate resource-limit status reduce false claims; they do not guarantee absence of false positives.
 - Re-evaluate privacy whenever adding fields, serialization, UI integrations, logging, network access, nested discovery mechanisms, or error details. Incomplete-analysis reasons must use fixed text, not URL-derived strings.
 - Distinguish an unsupported analysis case from an affirmative negative finding where the API can express that distinction.
+- The 42-case synthetic regression corpus currently has zero positive/negative expectation mismatches. These are corpus-specific assertions, not real-world false-positive measurements.
 - Do not treat passing tests as a security proof. Escalate ambiguous behavior or potential disclosure rather than silently weakening the invariant.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for module responsibilities and [DEVELOPMENT.md](DEVELOPMENT.md) for the testing workflow.
