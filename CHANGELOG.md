@@ -5,6 +5,11 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 ## [Unreleased]
 
 ### Added
+- Milestone 6.13: bounded whole-value Base64 decoding (standard, URL-safe, padded/unpadded; ambiguous alphabet classification) with strict padding, trailing-bit and UTF-8 validation, plus conservative HTML character-reference decoding (decimal, hexadecimal, and exactly `&colon;`, `&sol;`, `&amp;`).
+- Typed secondary encoding results, coverage issues, and ordered `DestinationTransformation` provenance integrated into existing breadth-first nested destination discovery. One secondary decoding stage may follow bounded percent decoding per value.
+- Secondary decoding limits: 16 KiB encoded input, 8 KiB decoded output, and 32-byte HTML-reference token scanning; explicit coverage and limit status keep unexamined or malformed inputs distinct from negative findings.
+- Shareable counts and fixed-text findings for Base64- and HTML-reference-derived candidates; detailed CLI outputs transformation order and characteristics.
+- Machine-readable 27-case synthetic TSV regression corpus exercised by automated integration tests, covering valid, benign, malformed, ambiguous, nested, bounded, and privacy-sensitive scenarios (132 tests reported passing locally).
 - Milestone 6.12: typed absolute HTTP/HTTPS and protocol-relative reference classification, with scheme-neutral handling of protocol-relative references and conservative rejection of ambiguous spellings.
 - Bounded breadth-first nested destination discovery with provenance (parameter positions, parent candidate, depth, decoding steps), duplicate occurrence retention, and deduplicated traversal work.
 - Typed destination-discovery completeness status and fixed limit explanations; limits are nesting depth 3, 64 candidate occurrences, and 32 parameters per nested URL, reusing existing URL/decoder limits.
@@ -37,6 +42,8 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Expanded CLI tests for exact privacy-reduced output, no URL-derived evidence in shareable stdout/stderr, hostname opt-in, invalid arguments, and unchanged detailed output.
 
 ### Changed
+- Milestone 6.13: `DestinationDiscovery` carries encoding coverage and issues alongside resource-limit status; use `DestinationDiscovery::is_complete()` to consider both. Several public report/provenance structs gained fields and enums gained variants, potentially affecting downstream struct literals or exhaustive matches.
+- Destination classification now conservatively rejects control characters in candidate references.
 - Milestone 6.12: `AnalysisReport` includes `destination_discovery`. `ShareableReport` adds nested/protocol-relative counts and discovery status, while the legacy direct absolute destination API remains available. Added public fields and enum variants may affect downstream struct literals or exhaustive matches.
 - Milestone 6.11: raw query values now reflect exact submitted input rather than URL-parser-normalized representations; normalized and form-decoded versions remain distinct.
 - Ambiguous original-path evidence now carries explicit unsupported coverage instead of being silently represented by an empty normalization finding list.
