@@ -3,6 +3,8 @@ resolver = "3"
 members = [
     "crates/linksleuth-core",
     "crates/linksleuth-cli",
+    "crates/linksleuth-wasm",
+    "examples/consumer-app",
 ]
 
 [workspace.package]
