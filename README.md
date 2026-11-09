@@ -32,6 +32,7 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Recognize forward and backslash separators in supported original-path evidence, while excluding query strings and fragments from these findings.
 - Explicitly distinguish examined original-path evidence from unsupported or ambiguous extraction using typed coverage metadata, avoiding an unsupported-is-clean interpretation.
 - Inspect URLs using a command-line tool that displays normalization findings alongside decoding results and possible embedded destinations.
+- Provide an independent Rust consumer example (`examples/consumer-app`) and a separate WebAssembly adapter (`crates/linksleuth-wasm`), with browser wire schema version 1. The core and adapter compiled for `wasm32-unknown-unknown`; actual browser runtime loading and JavaScript integration are not yet verified.
 - Introduce a versioned, Rust-only `consumer` API (schema version 1) intended for Clue and third-party integrations. `create_consumer_report()` returns deterministic, fixed-text observations and four-stage analysis completeness, with no hostname or detailed evidence by default; hostname and evidence are independent explicit opt-ins.
 - Generate a structured privacy-reduced `ShareableReport` in the core library: hostname redacted by default, aggregate counts including nested/protocol-relative and Base64/HTML-reference-derived candidates, typed discovery and encoding-coverage status, and fixed-text observations without URL-derived strings. An options-aware API allows explicit hostname inclusion.
 - Use `--shareable` in the CLI to print a privacy-reduced report with readable findings, or `--shareable --include-hostname` to deliberately reveal the hostname. Tests cover privacy-sensitive output, error handling, opt-in disclosure, and detailed-mode compatibility.
@@ -70,7 +71,19 @@ crates/
   linksleuth-cli/   Command-line interface
 ```
 
-The core library is independent of its CLI consumer. Applications should prefer the additive, schema-versioned `linksleuth_core::consumer` API over coupling to internal analysis structures. The consumer contract has no stable JSON/wire format yet; schema version 1 is separate from the crate's development version. Planned consumers include **Clue**, a friendly web interface, and browser/email integrations.
+The core library is independent of its CLI consumer. See [Clue MVP specification](docs/CLUE_MVP.md) and [integration readiness assessment](docs/CLUE_INTEGRATION_READINESS.md) for the proposed local-first browser workflow and verified WASM build boundary. Applications should prefer the additive, schema-versioned `linksleuth_core::consumer` API over coupling to internal analysis structures. The Rust consumer schema version 1 is distinct from the browser adapter's explicit JSON wire schema version 1 and from the crate's development version. A browser build has not yet been executed in a real browser. Planned consumers include **Clue**, a friendly web interface, and browser/email integrations.
+
+## Try the independent consumer and WASM build
+
+```bash
+cargo run -p linksleuth-consumer-app
+cargo test -p linksleuth-consumer-app
+rustup target add wasm32-unknown-unknown
+cargo check -p linksleuth-core --target wasm32-unknown-unknown
+cargo build -p linksleuth-wasm --target wasm32-unknown-unknown
+```
+
+The example uses privacy-reduced observations by default. WASM compilation alone does not establish that a browser can load or run the generated module; packaging and browser-runtime tests are still required.
 
 ## Roadmap and changes
 
