@@ -7,16 +7,26 @@ use linksleuth_core::normalization::OriginalPathAnalysis;
 
 const CORPUS: &str = include_str!("corpus/destination_cases.tsv");
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct CorpusMetrics {
+    total_cases: usize,
+    expected_candidate_positive_cases: usize,
+    expected_candidate_negative_cases: usize,
+    unexpected_candidate_findings: usize,
+    missed_expected_candidate_findings: usize,
+    incomplete_or_unsupported_cases: usize,
+}
+
 #[test]
 fn destination_regression_corpus_matches_structured_expectations() {
-    let mut case_count = 0;
+    let mut metrics = CorpusMetrics::default();
 
     for line in CORPUS.lines() {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
 
-        case_count += 1;
+        metrics.total_cases += 1;
         let fields = line.split('\t').collect::<Vec<_>>();
         assert_eq!(fields.len(), 9, "invalid corpus row: {line}");
 
@@ -33,6 +43,28 @@ fn destination_regression_corpus_matches_structured_expectations() {
         let report = analyze_url(&input)
             .unwrap_or_else(|error| panic!("corpus case {id} failed analysis with {error:?}"));
         let discovery = &report.destination_discovery;
+        let expected_candidate_positive = expected_count > 0;
+        let actual_candidate_positive = !discovery.candidates.is_empty();
+
+        if expected_candidate_positive {
+            metrics.expected_candidate_positive_cases += 1;
+        } else {
+            metrics.expected_candidate_negative_cases += 1;
+        }
+        if !expected_candidate_positive && actual_candidate_positive {
+            metrics.unexpected_candidate_findings += 1;
+        }
+        if expected_candidate_positive && !actual_candidate_positive {
+            metrics.missed_expected_candidate_findings += 1;
+        }
+        if !discovery.is_complete()
+            || matches!(
+                report.original_path_analysis,
+                OriginalPathAnalysis::Unsupported { .. }
+            )
+        {
+            metrics.incomplete_or_unsupported_cases += 1;
+        }
 
         assert_eq!(
             discovery.candidates.len(),
@@ -94,7 +126,29 @@ fn destination_regression_corpus_matches_structured_expectations() {
         );
     }
 
-    assert_eq!(case_count, 27);
+    eprintln!(
+        "corpus metrics: total={}, expected_positive={}, expected_negative={}, unexpected_findings={}, misses={}, incomplete_or_unsupported={}",
+        metrics.total_cases,
+        metrics.expected_candidate_positive_cases,
+        metrics.expected_candidate_negative_cases,
+        metrics.unexpected_candidate_findings,
+        metrics.missed_expected_candidate_findings,
+        metrics.incomplete_or_unsupported_cases,
+    );
+
+    assert_eq!(metrics.unexpected_candidate_findings, 0);
+    assert_eq!(metrics.missed_expected_candidate_findings, 0);
+    assert_eq!(
+        metrics,
+        CorpusMetrics {
+            total_cases: 42,
+            expected_candidate_positive_cases: 21,
+            expected_candidate_negative_cases: 21,
+            unexpected_candidate_findings: 0,
+            missed_expected_candidate_findings: 0,
+            incomplete_or_unsupported_cases: 7,
+        }
+    );
 }
 
 fn expand_input(input: &str) -> String {

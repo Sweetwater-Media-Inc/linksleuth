@@ -1,4 +1,5 @@
 pub mod analysis;
+pub mod consumer;
 pub mod decoder;
 pub mod destinations;
 pub mod encodings;
