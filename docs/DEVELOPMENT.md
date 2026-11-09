@@ -16,9 +16,9 @@ We develop in reviewed, meaningful batches. Feature scope and acceptance criteri
 
 - Prefer typed Rust data structures, explicit states, bounded loops, and clear error handling. Keep raw evidence separate from fixed shareable messages.
 - Add unit tests in the affected core module and executable CLI integration tests under `crates/linksleuth-cli/tests/` when changing user-visible behavior.
-- Include ordinary, malformed, adversarial, edge-case, and privacy cases appropriate to the change. Test both successful and rejected CLI options.
+- Include ordinary, malformed, adversarial, edge-case, and privacy cases appropriate to the change. Maintain the synthetic destination corpus with explicit expected candidate presence, incomplete status and aggregate mismatch reporting; synthetic results do not measure real-world phishing performance. Test both successful and rejected CLI options.
 - Preserve existing behavior and APIs unless the milestone explicitly permits a change; call out migration concerns.
-- For privacy-related output, check full stdout/stderr, `Debug` representation, sensitive markers, and opt-in boundaries.
+- For privacy-related output, check full stdout/stderr, `Debug` representation, sensitive markers, and opt-in boundaries. For the versioned `consumer` API, test default disclosure, independent hostname/evidence opt-ins, stable observation IDs, stage-level completeness and evidence-reference privacy.
 - When changing URL parsing or normalization, test exact submitted raw evidence, explicit examined-versus-unsupported path coverage, and the documented byte/parameter/pass boundaries. Avoid broad privacy guarantees.
 
 ## Required checks
