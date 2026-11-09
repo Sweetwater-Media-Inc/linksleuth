@@ -18,7 +18,7 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 
 - Parse HTTP and HTTPS URLs into scheme, hostname, path, port, query parameters, and fragment.
 - Preserve original URL input alongside the URL parser's normalized interpretation, including changes to hostname case, default ports, and dot-segment paths.
-- Preserve raw query parameter values alongside decoded equivalents.
+- Preserve exact submitted raw query parameter names and values alongside form-decoded equivalents, even where URL parsing normalizes Unicode or other characters.
 - Retain repeated query parameter names in order, including empty values and flag-style parameters.
 - Record whether each raw query parameter contained a literal equals sign (`has_equals`), distinguishing `flag` from `empty=`.
 - Preserve distinct encoded forms such as `+`, `%20`, `%2B`, `%26`, and `%3D` for evidence review.
@@ -30,13 +30,14 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 - Produce preliminary structured findings for encoded parent-directory segments in original URL paths, showing original and normalized paths with an evidence-based explanation.
 - Include normalization findings alongside decoded parameters and possible embedded destinations in the reusable `AnalysisReport`.
 - Recognize forward and backslash separators in supported original-path evidence, while excluding query strings and fragments from these findings.
-- Conservatively omit normalization findings for unsupported ambiguous scheme separators rather than asserting uncertain path evidence.
+- Explicitly distinguish examined original-path evidence from unsupported or ambiguous extraction using typed coverage metadata, avoiding an unsupported-is-clean interpretation.
 - Inspect URLs using a command-line tool that displays normalization findings alongside decoding results and possible embedded destinations.
 - Generate a structured privacy-reduced `ShareableReport` in the core library: hostname redacted by default, aggregate counts, and four fixed-text findings (encoded parent-directory segment, candidate embedded destination, malformed percent encoding, decoding pass limit). An options-aware API allows explicit hostname inclusion.
 - Use `--shareable` in the CLI to print a privacy-reduced report with readable findings, or `--shareable --include-hostname` to deliberately reveal the hostname. Tests cover privacy-sensitive output, error handling, opt-in disclosure, and detailed-mode compatibility.
-- Run automated tests covering parsing, decoding, discovery, privacy-reduced reporting, and actual CLI output (normalization titles, decoding warnings, and precise decoding status wording).
+- Bound input to 16 KiB, non-empty query parameters to 256, decoder input to 16 KiB, and percent decoding to three passes.
+- Run automated tests covering parsing, decoding, Unicode, normalization coverage, resource limits, privacy-reduced reporting, and actual CLI output; GitHub Actions runs formatting, workspace tests, and Clippy on pushes and pull requests to main.
 
-**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; raw-path extraction needs further edge-case hardening, and privacy-reduced reporting is not a fully audited or anonymous export; counts and finding categories may reveal metadata. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
+**Limitations:** Normalization findings currently recognize a limited set of encoded parent-directory patterns; some unusual original-path spellings remain unsupported and normalization detection remains limited to encoded parent-directory patterns. Privacy-reduced reporting is not a fully audited or anonymous export; counts and finding categories may reveal metadata. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
 
 ## Build and test
 
@@ -58,7 +59,7 @@ cargo run -p linksleuth-cli -- \
   "https://example.com/?target=https%253A%252F%252Fother.example"
 ```
 
-The default CLI mode reports URL components, decoding steps, percent-decoding completion or pass-limit conditions, malformed-sequence observations, potential embedded URLs, and supported normalization findings with original/normalized path evidence. For privacy-reduced output, run `cargo run -p linksleuth-cli -- --shareable 'https://example.com/?token=example'`; this prints a redacted hostname, aggregate counts, and fixed-text observations instead of original URL evidence. Add `--include-hostname` after `--shareable` only when you deliberately want to disclose the hostname. No suspicious destination is contacted.
+The default CLI mode reports URL components, decoding steps, percent-decoding completion or pass-limit conditions, malformed-sequence observations, potential embedded URLs, and supported normalization findings with original/normalized path evidence. It also distinguishes unsupported original-path analysis from an examined path with no finding. For privacy-reduced output, run `cargo run -p linksleuth-cli -- --shareable 'https://example.com/?token=example'`; this prints a redacted hostname, aggregate counts, and fixed-text observations instead of original URL evidence. Add `--include-hostname` after `--shareable` only when you deliberately want to disclose the hostname. No suspicious destination is contacted.
 
 ## Project structure
 
