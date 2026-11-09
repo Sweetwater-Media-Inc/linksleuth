@@ -52,16 +52,20 @@ This is a living plan, not a promise of release dates. Completed items describe 
 
 ## Next: Expanded discovery and explainability
 
-- [ ] Recognize protocol-relative embedded URLs such as `//example.com/path`.
-- [ ] Explore URLs nested in additional parameter structures or text, with explicit source provenance.
+- [x] Recognize protocol-relative candidate URLs, with typed classification and conservative authority validation.
+- [x] Discover candidate URLs nested within candidate query parameters, with typed parent/position/decoding provenance and bounded breadth-first traversal.
+- [ ] Consider additional nested parameter structures without arbitrary substring guessing.
 - [ ] Add carefully bounded Base64 and HTML-entity analysis.
-- [ ] Distinguish observed decoded text from candidate destinations and verified redirects.
+- [x] Distinguish absolute and protocol-relative candidates from verified redirects; do not claim navigation or a final destination.
 - [x] Introduce initial fixed-text, privacy-reduced structured findings for four supported observations.
-- [ ] Extend detailed structured findings and evidence provenance without compromising shareable reporting.
-- [ ] Add a regression corpus of synthetic suspicious and legitimate URLs.
+- [x] Extend detailed candidate provenance and privacy-reduced reporting to include nested/protocol-relative findings and incomplete discovery status.
+- [ ] Expand detailed findings beyond current supported candidate and normalization categories.
+- [ ] Add a regression corpus of synthetic suspicious and legitimate URLs, including nested encoding and misleading candidate patterns.
 - [ ] Introduce fuzz/property-based tests and evaluate false positives.
 
 ## Development documentation
+
+- [x] Document Milestone 6.12 candidate discovery, limits, status and privacy boundaries.
 
 - [x] Add repository-level `AGENTS.md` and architecture, security, and development guidance in `docs/`.
 - [ ] Keep guidance in sync with future architectural or privacy changes.
