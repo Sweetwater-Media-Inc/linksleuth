@@ -27,24 +27,28 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Add original-path extraction regression tests for credentials, query/fragment boundaries, and backslash separators.
 - [x] Test IPv6 authority syntax, encoded credentials, explicit ports, and conservatively skip ambiguous scheme-separator paths.
 - [x] Integrate normalization findings into the reusable `AnalysisReport` with regression tests.
-- [ ] Further harden original-path extraction for remaining unusual URL syntax and distinguish unsupported extraction from no finding.
+- [x] Add typed original-path coverage and conservative extraction across supported unusual authority spellings; distinguish unsupported extraction from examined paths with no finding.
+- [ ] Continue researching unsupported unusual scheme/authority spellings without building a separate WHATWG parser.
 - [x] Display normalization findings with original/normalized path evidence and explanations in the CLI.
 - [x] Improve CLI normalization titles, show pass-aware decoding warnings, and add initial automated CLI output tests.
 - [x] Refine percent-decoding status wording and add a regression test for malformed encoding alongside decoding completion.
-- [ ] Expand CLI regression coverage for pass limits and mixed valid/malformed sequences.
-- [ ] Add additional Unicode and unusual query-syntax edge cases.
+- [x] Extend tests across CLI, Unicode, multi-pass decoding, and mixed valid/malformed sequences.
+- [x] Add Unicode hostname, path and query tests, UTF-8 byte-offset tests, mixed hex-case decoding tests, and query/fragment boundary tests.
+- [ ] Expand adversarial Unicode and unusual-URL regression coverage as new real-world cases arise.
 - [x] Verify distinct raw and form-decoded values for `+`, `%20`, `%2B`, `%26`, and `%3D`.
-- [ ] Document percent decoding versus form-style `+` decoding throughout the analysis API.
-- [ ] Extend evidence provenance from exact raw input through all transformations (pass-aware warnings now implemented).
-- [ ] Refine decoding status and limitations to avoid overstating completeness.
-- [ ] Apply strict bounds to all relevant analysis stages.
+- [x] Document raw versus form-decoded query representations and percent decoding semantics in the analysis API.
+- [x] Preserve exact submitted query evidence separately from normalized/form-decoded values, with decoding-pass input/output and byte-offset provenance.
+- [x] Separate percent-decoding completion/pass-limit status from original-path analysis coverage; avoid overstating completeness.
+- [x] Enforce explicit limits on submitted URL bytes, query-parameter count, decoder input bytes and decoding passes.
+- [ ] Evaluate separate warning-count caps and broader performance/fuzz testing.
 - [x] Introduce a minimal privacy-reduced core report with redacted hostname and aggregate analysis counts, with tests for evidence preservation and example-sensitive-data exclusion.
 - [x] Add safe-default `ShareableReportOptions` with explicit hostname disclosure, typed shareable finding categories, fixed explanatory text, and privacy regression tests.
 - [ ] Continue reviewing metadata disclosure risks and expand privacy controls if justified; there is no general anonymity guarantee.
 - [x] Integrate `--shareable` privacy-reduced CLI output using the core reporting module, with end-to-end regression tests.
 - [x] Add privacy regression tests for CLI standard error, invalid arguments and analysis failures, and hostname opt-in.
 - [ ] Evaluate safer URL input mechanisms to reduce shell-history and process-argument exposure.
-- [ ] Add CI checks for formatting, tests, and Clippy.
+- [x] Add GitHub Actions checks for formatting, tests, and Clippy on main pushes and pull requests.
+- [ ] Confirm initial remote CI outcome and keep workflow maintained.
 
 ## Next: Expanded discovery and explainability
 
