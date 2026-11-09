@@ -55,20 +55,30 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Recognize protocol-relative candidate URLs, with typed classification and conservative authority validation.
 - [x] Discover candidate URLs nested within candidate query parameters, with typed parent/position/decoding provenance and bounded breadth-first traversal.
 - [ ] Consider additional nested parameter structures without arbitrary substring guessing.
-- [ ] Add carefully bounded Base64 and HTML-entity analysis.
+- [x] Add bounded whole-value Base64 and limited HTML character-reference decoding with strict validation, explicit transformation order, and conservative candidate classification.
+- [ ] Evaluate additional encodings or named HTML references only with measurable value and false-positive evidence.
 - [x] Distinguish absolute and protocol-relative candidates from verified redirects; do not claim navigation or a final destination.
 - [x] Introduce initial fixed-text, privacy-reduced structured findings for four supported observations.
 - [x] Extend detailed candidate provenance and privacy-reduced reporting to include nested/protocol-relative findings and incomplete discovery status.
 - [ ] Expand detailed findings beyond current supported candidate and normalization categories.
-- [ ] Add a regression corpus of synthetic suspicious and legitimate URLs, including nested encoding and misleading candidate patterns.
-- [ ] Introduce fuzz/property-based tests and evaluate false positives.
+- [x] Add automated, machine-readable synthetic destination regression corpus (27 cases) for legitimate, suspicious-looking, malformed, nested, ambiguous, bounded, and privacy-sensitive cases.
+- [ ] Expand corpus with new regression cases and false-positive samples as they are identified.
+- [ ] Introduce fuzz/property-based tests and evaluate false positives using the corpus and broader synthetic data.
 
 ## Development documentation
+
+- [x] Document bounded Base64 and HTML-reference decoding, typed coverage, provenance, limitations, and regression corpus from Milestone 6.13.
 
 - [x] Document Milestone 6.12 candidate discovery, limits, status and privacy boundaries.
 
 - [x] Add repository-level `AGENTS.md` and architecture, security, and development guidance in `docs/`.
 - [ ] Keep guidance in sync with future architectural or privacy changes.
+
+## Next: API stabilization and detection quality
+
+- [ ] Review public report/provenance struct evolution and define a compatibility approach for Clue and downstream Rust users.
+- [ ] Assess encoding coverage and incomplete-discovery semantics across consumers.
+- [ ] Measure false-positive behaviour and refine synthetic regression fixtures before expanding detection breadth.
 
 ## Future: Clue companion web interface
 
