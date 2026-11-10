@@ -41,3 +41,23 @@ mixed_valid_malformed_percent	https://top.example/?target=https%3A%2F%2Fmixed.ex
 base64_malformed_authority	https://top.example/?payload=aHR0cHM6Ly9bYnJva2Vu	0	-	-	true	none	examined	0
 html_unicode_plain_text	https://top.example/?text=snowman%3D%26%239731%3B	0	-	-	true	none	examined	0
 base64_http_candidate	https://top.example/?payload=aHR0cDovL2Jhc2U2NC1odHRwLmV4YW1wbGUv	1	http	base64	true	none	examined	0
+hostname_first_target	https://top.example/?target=tracking.example/path	1	hostname-first	none	true	none	examined	0	-	target	tracking.example/path
+hostname_first_outside_context	https://top.example/?label=tracking.example/path	0	-	-	true	none	examined	0	-	-	-
+hostname_first_trailing_dot	https://top.example/?target=tracking.example./path	1	hostname-first	none	true	none	examined	0	-	target	tracking.example./path
+hostname_first_explicit_port	https://top.example/?redirect=tracking.example%3A8443/path	1	hostname-first	percent	true	none	examined	0	-	redirect	tracking.example:8443/path
+hostname_first_malformed_authority	https://top.example/?target=bad_example.test/path	0	-	-	true	none	examined	0	-	-	-
+hostname_first_whitespace	https://top.example/?target=%20tracking.example/path%20	0	-	-	true	none	examined	0	-	-	-
+hostname_first_backslash	https://top.example/?target=tracking.example%5Cpath	0	-	-	true	none	examined	0	-	-	-
+compound_single_destination	https://top.example/?target=tracking.example%2F%2Fpath%3Fadurl%3D%2F%2Finner.example%2Flanding	1	protocol	percent+compound	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	adurl	//inner.example/landing
+compound_unrecognized_inner	https://top.example/?target=tracking.example%2F%2Fpath%3Flabel%3D%2F%2Finner.example%2Flanding	0	-	-	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	-	-
+compound_html_delimiter	https://top.example/?target=tracking.example%2F%2Fpath%3Fflag%26amp%3Badurl%3D%2F%2Fhtml-inner.example%2Flanding	1	protocol	percent+html+compound	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	adurl	//html-inner.example/landing
+compound_repeated_html_delimiter	https://top.example/?target=tracking.example%2F%2Fpath%3Fflag%26amp%3B%26amp%3Badurl%3D%2F%2Frepeated-inner.example%2Flanding	1	protocol	percent+html+compound	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	adurl	//repeated-inner.example/landing
+compound_html_then_percent_inner	https://top.example/?target=tracking.example%2F%2Fpath%3Fadurl%3D%26%2337%3B2F%26%2337%3B2Fencoded-inner.example%26%2337%3B2Flanding	1	protocol	percent+html+compound+percent	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	adurl	//encoded-inner.example/landing
+compound_unsupported_html	https://top.example/?target=tracking.example%2F%2Fpath%3Fadurl%3Dhttps%26bogus%3B%2F%2Fhidden.example	0	-	-	false	unsupported-html,ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first	-	-
+benign_html_ampersand_text	https://top.example/?text=tea%26amp%3Bbiscuits	0	-	-	true	none	examined	0	-	-	-
+benign_hostname_like_identifier	https://top.example/?product=widget.example/model-2	0	-	-	true	none	examined	0	-	-	-
+compound_without_valid_destination	https://top.example/?target=tracking.example%2F%2Fpath%3Fadurl%3D%2Flocal%2Fpath	0	-	-	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	-	-
+ambiguous_hostname_first_only	https://top.example/?target=tracking.example%2F%2Fpath	0	-	-	false	ambiguous-hostname-first	examined	0	ambiguous-hostname-first	-	-
+duplicate_compound_candidates	https://top.example/?target=tracking.example%2F%2Fpath%3Fadurl%3D%2F%2Frepeated-inner.example%2Flanding&target=tracking.example%2F%2Fpath%3Fadurl%3D%2F%2Frepeated-inner.example%2Flanding	2	protocol,protocol	percent+compound;percent+compound	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound,encoded-delimiter,ambiguous-hostname-first,compound	adurl,adurl	//repeated-inner.example/landing,//repeated-inner.example/landing
+compound_parameter_limit	@generate-compound-parameter-limit	0	-	-	false	maximum-compound-parameters,ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	-	-
+compound_encoded_destination_example	https://social.example/link/v2?aid=1988&scene=bio_url&target=tracking.example./%2Fpcs/click?fake-id%26amp%3B%26amp%3Badurl=%2F%2F%73%74%6F%72%61%67%65%2E%65%78%61%6D%70%6C%65%2Flanding.html#synthetic-fragment	1	protocol	percent+html+compound	false	ambiguous-hostname-first	examined	0	encoded-delimiter,ambiguous-hostname-first,compound	adurl	//storage.example/landing.html

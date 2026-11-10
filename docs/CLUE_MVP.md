@@ -7,8 +7,9 @@ helps a person understand the structure of a URL before deciding what to do
 with it. Clue explains observations and analysis limitations; it does not label
 a URL safe or malicious.
 
-This document describes the MVP implemented by the first Clue browser
-prototype, not a production deployment or a complete frontend design.
+This document describes the MVP implemented by the Clue browser prototype,
+including Milestone 6.17 structural findings, not a production deployment or a
+complete frontend design.
 
 ## Prototype status
 
@@ -87,6 +88,11 @@ identifier, and occurrence count. Multiple occurrences of one category appear
 as one observation with a count. Candidate destinations are described as
 potential structural references, never verified redirects.
 
+The primary interface does not display stable identifiers. It presents a
+vertical list of fixed plain-language titles, explanations, and understated
+occurrence counts. Identifiers remain in the validated browser contract for
+integrations and tests.
+
 If there are no observations, display:
 
 > No supported structural observations were produced. This does not mean the
@@ -97,7 +103,8 @@ website preview.
 
 ### Analysis completeness
 
-Display the overall status followed by every stage:
+Display a concise overall status. The four detailed stages remain available in
+the accessible **What Clue examined** disclosure:
 
 - Original path
 - Percent decoding
@@ -107,6 +114,28 @@ Display the overall status followed by every stage:
 Use the stage status and fixed completeness reasons. “Complete within supported
 scope” means only that the bounded supported stage completed. An unsupported or
 resource-limited stage remains prominent even when observations were produced.
+Concrete ambiguity encountered in the submitted value is also visible outside
+the collapsed disclosure.
+
+## Milestone 6.17 supported structures
+
+Clue can now present privacy-reduced observations for:
+
+- Complete hostname-first references in a narrow destination-parameter
+  allowlist, without inventing a scheme.
+- Encoded query delimiters in those destination-bearing values.
+- One deterministic compound-query interpretation with at most 16 inner
+  parameters.
+- Complete absolute or protocol-relative references occupying a supported
+  inner parameter value.
+- Multiple bounded percent-decoding transformations.
+- Ambiguous hostname-first authority/path boundaries that were deliberately
+  not promoted to candidates.
+
+The compound parser does not scan arbitrary substrings, repeatedly interpret
+HTML, or analyze fragments as destinations. The synthetic motivating example
+therefore recognizes the complete inner protocol-relative value while leaving
+the outer `hostname//path` spelling explicitly ambiguous.
 
 ### Expandable technical details
 

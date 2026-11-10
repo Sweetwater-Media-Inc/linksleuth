@@ -7,6 +7,32 @@ from an independent Rust package and the first Clue browser prototype. It does
 not claim that the application is production-hardened or that the consumer API
 is permanently frozen.
 
+## Milestone 6.17 synthetic diagnostic
+
+The sanitized motivating fixture uses `social.example`, a `target` value that
+starts `tracking.example.//...`, supported percent-encoded HTML delimiters, and
+an inner `adurl=//storage.example/landing.html`. The fragment contains only a
+fixed synthetic label.
+
+Before this milestone, destination discovery classified only a complete
+absolute or protocol-relative value, or one produced by a whole-value Base64
+or HTML-reference transformation. The form parser correctly retained the raw
+outer `target`; one percent pass revealed the hostname-first and compound text,
+but the complete value had no scheme, `hostname//path` had an ambiguous
+authority boundary, and the inner query was never interpreted. Consequently,
+the complete `adurl` value was not presented to the existing protocol-relative
+classifier. Completeness described the implemented pipeline accurately but did
+not communicate the encountered structural ambiguity.
+
+Milestone 6.17 keeps the outer spelling ambiguous, performs at most one
+supported HTML-reference interpretation, splits a bounded inner query only in
+an allowlisted destination context, and classifies the complete inner `adurl`
+value. The result is one protocol-relative candidate with percent, HTML, and
+compound-extraction provenance plus fixed observations for the encoded query
+delimiter, compound structure, and unresolved hostname-first boundary. It does
+not infer a scheme, redirect, or navigation. The fragment remains intentionally
+outside destination analysis.
+
 ## Independent Rust integration
 
 `examples/consumer-app` is a separate workspace package with a normal Cargo
@@ -85,6 +111,10 @@ These are architectural separations, not defects in the reusable core.
 - Public-host Content Security Policy and deployment configuration
 - Manual assistive-technology behavior
 - The future explicit technical-evidence disclosure flow
+- Interpretation of URL fragments as destination containers; fragments remain
+  outside destination discovery
+- Ambiguous `hostname//path` authority boundaries; these are reported rather
+  than repaired
 
 Successful target compilation demonstrates portability but remains distinct
 from browser execution. Clue's Chromium suite now supplies browser-runtime
@@ -119,6 +149,33 @@ equivalent safe framework binding.
 The browser wire schema version is separate from consumer schema version 1.
 Wire-incompatible changes require advancing `BROWSER_WIRE_SCHEMA_VERSION`.
 Consumer-contract changes continue to follow the core schema version.
+
+### Milestone 6.17 compatibility decision
+
+Consumer schema 1 and browser wire schema 1 remain unchanged. The JSON shape,
+privacy boundary, required fields, and error contract did not change; new
+analysis results use the existing extensible observation and completeness
+collections. Stable identifiers for existing observations are unchanged.
+
+The Rust core adds public `HostnameFirst`, compound-extraction transformation,
+structural-observation, interpretation-coverage, and compound-limit variants.
+Rust consumers that exhaustively match the affected public enums must add arms
+when upgrading. The consumer-facing enums remain `#[non_exhaustive]`, while the
+lower-level destination enums currently are not, so this is a source-level
+upgrade consideration even though the versioned consumer and browser contracts
+remain compatible.
+
+Destination-bearing names are matched case-insensitively against the narrow
+allowlist `target`, `url`, `redirect`, `redirect_uri`, `destination`, `dest`,
+`adurl`, `next`, `continue`, `return`, and `return_to`. A name never overrides
+malformed syntax. Hostname-first values require an ASCII multi-label hostname,
+an optional valid numeric port, and one unambiguous slash path boundary.
+
+Compound interpretation is limited to one deterministic representation, 16
+non-empty inner parameters, the existing 16 KiB percent-decoder input bound,
+the existing secondary-decoder bounds, and the existing 64-candidate and
+three-level traversal bounds. The parser only examines complete values from
+allowlisted inner parameters and never performs substring searching.
 
 ## Dependency assessment
 

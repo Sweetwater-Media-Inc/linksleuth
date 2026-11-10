@@ -18,6 +18,16 @@ pub const MAX_DISCOVERED_DESTINATIONS: usize = 64;
 /// Maximum parameters examined from each discovered candidate URL.
 pub const MAX_NESTED_QUERY_PARAMETERS: usize = 32;
 
+/// Maximum parameters examined from one supported compound query value.
+pub const MAX_COMPOUND_QUERY_PARAMETERS: usize = 16;
+
+/// Maximum compound-query interpretations considered for one source value.
+///
+/// LinkSleuth uses exactly one deterministic representation: the bounded
+/// percent-decoded value, followed by at most one supported HTML-reference
+/// interpretation when applicable.
+pub const MAX_COMPOUND_QUERY_INTERPRETATIONS: usize = 1;
+
 /// Legacy directly embedded absolute HTTP/HTTPS destination representation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmbeddedDestination {
@@ -35,8 +45,13 @@ pub enum DestinationScheme {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DestinationReferenceKind {
-    Absolute { scheme: DestinationScheme },
+    Absolute {
+        scheme: DestinationScheme,
+    },
     ProtocolRelative,
+    /// A complete hostname/path reference found in a destination-bearing
+    /// parameter. No HTTP or HTTPS scheme is inferred.
+    HostnameFirst,
 }
 
 /// A syntactically supported potential destination reference.
@@ -82,6 +97,84 @@ pub enum DestinationTransformation {
     HtmlCharacterReferenceDecoding {
         reference_count: usize,
     },
+    CompoundQueryExtraction {
+        parameter_position: usize,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DestinationStructureKind {
+    MultiplePercentDecodingTransformations,
+    EncodedQueryDelimiter,
+    CompoundQueryValue,
+    AmbiguousHostnameFirstReference,
+}
+
+impl DestinationStructureKind {
+    pub const fn identifier(self) -> &'static str {
+        match self {
+            Self::MultiplePercentDecodingTransformations => {
+                "encoding.multiple-percent-transformations"
+            }
+            Self::EncodedQueryDelimiter => "structure.encoded-query-delimiter",
+            Self::CompoundQueryValue => "structure.compound-query-value",
+            Self::AmbiguousHostnameFirstReference => "structure.hostname-first-ambiguous",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DestinationStructureObservation {
+    pub kind: DestinationStructureKind,
+    pub top_level_parameter_index: usize,
+    pub source_parameter_index: usize,
+    pub depth: usize,
+    pub parent_candidate_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DestinationInterpretationIssueKind {
+    AmbiguousHostnameFirstReference,
+}
+
+impl DestinationInterpretationIssueKind {
+    pub const fn explanation(self) -> &'static str {
+        match self {
+            Self::AmbiguousHostnameFirstReference => {
+                "A destination-bearing value began with a valid hostname but used an ambiguous authority/path boundary, so it was not classified as a destination."
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DestinationInterpretationIssue {
+    pub kind: DestinationInterpretationIssueKind,
+    pub top_level_parameter_index: usize,
+    pub source_parameter_index: usize,
+    pub depth: usize,
+    pub parent_candidate_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DestinationInterpretationCoverage {
+    Complete,
+    Partial {
+        issues: Vec<DestinationInterpretationIssueKind>,
+    },
+}
+
+impl DestinationInterpretationCoverage {
+    pub fn is_complete(&self) -> bool {
+        matches!(self, Self::Complete)
+    }
+
+    pub fn issues(&self) -> &[DestinationInterpretationIssueKind] {
+        match self {
+            Self::Complete => &[],
+            Self::Partial { issues } => issues,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,6 +188,7 @@ pub enum DestinationDiscoveryLimit {
     MaximumNestingDepth,
     MaximumCandidateCount,
     MaximumNestedParameterCount,
+    MaximumCompoundParameterCount,
     DecoderInputLength,
     DecodingPassLimit,
     NestedUrlLength,
@@ -114,6 +208,9 @@ impl DestinationDiscoveryLimit {
             }
             Self::MaximumNestedParameterCount => {
                 "A nested URL exceeded the parameter examination limit; additional parameters were not examined."
+            }
+            Self::MaximumCompoundParameterCount => {
+                "A compound query value exceeded the inner-parameter examination limit; additional inner parameters were not examined."
             }
             Self::DecoderInputLength => {
                 "A destination source exceeded the decoder input limit and was not examined."
@@ -219,11 +316,16 @@ pub struct DestinationDiscovery {
     pub status: DestinationDiscoveryStatus,
     pub encoding_coverage: DestinationEncodingCoverage,
     pub encoding_issues: Vec<DestinationEncodingIssue>,
+    pub structure_observations: Vec<DestinationStructureObservation>,
+    pub interpretation_coverage: DestinationInterpretationCoverage,
+    pub interpretation_issues: Vec<DestinationInterpretationIssue>,
 }
 
 impl DestinationDiscovery {
     pub fn is_complete(&self) -> bool {
-        self.status.is_complete() && self.encoding_coverage.is_complete()
+        self.status.is_complete()
+            && self.encoding_coverage.is_complete()
+            && self.interpretation_coverage.is_complete()
     }
 }
 
@@ -417,6 +519,19 @@ struct CandidateSource {
     parent_candidate_index: Option<usize>,
 }
 
+impl CandidateSource {
+    fn is_destination_context(&self) -> bool {
+        is_destination_parameter(&self.source_parameter)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HostnameFirstClassification {
+    Supported,
+    Ambiguous,
+    NotApplicable,
+}
+
 #[derive(Default)]
 struct DiscoveryState {
     candidates: Vec<DiscoveredDestination>,
@@ -424,6 +539,8 @@ struct DiscoveryState {
     traversed: HashSet<(DestinationReferenceKind, String)>,
     limits: Vec<DestinationDiscoveryLimit>,
     encoding_issues: Vec<DestinationEncodingIssue>,
+    structure_observations: Vec<DestinationStructureObservation>,
+    interpretation_issues: Vec<DestinationInterpretationIssue>,
     candidate_limit_reached: bool,
 }
 
@@ -443,6 +560,19 @@ impl DiscoveryState {
     fn examine_source(&mut self, decoding: DecodingResult, source: CandidateSource) {
         self.observe_decoding_status(&decoding);
 
+        if decoding.steps.len() > 1 {
+            self.add_structure_observation(
+                DestinationStructureKind::MultiplePercentDecodingTransformations,
+                &source,
+            );
+        }
+        if source.is_destination_context() && reveals_encoded_query_delimiter(&decoding) {
+            self.add_structure_observation(
+                DestinationStructureKind::EncodedQueryDelimiter,
+                &source,
+            );
+        }
+
         let mut transformations = Vec::new();
         if !decoding.steps.is_empty() {
             transformations.push(DestinationTransformation::PercentDecoding {
@@ -453,6 +583,19 @@ impl DiscoveryState {
         if let Some(reference) = discover_destination_reference(&decoding.decoded) {
             self.add_candidate_from_source(reference, decoding, transformations, source);
             return;
+        }
+
+        if source.is_destination_context() {
+            match classify_hostname_first_reference(&decoding.decoded) {
+                (HostnameFirstClassification::Supported, Some(reference)) => {
+                    self.add_candidate_from_source(reference, decoding, transformations, source);
+                    return;
+                }
+                (HostnameFirstClassification::Ambiguous, None) => {
+                    self.add_hostname_first_ambiguity(&source);
+                }
+                _ => {}
+            }
         }
 
         match decode_base64_complete(&decoding.decoded) {
@@ -469,17 +612,14 @@ impl DiscoveryState {
             }
             Base64DecodingOutcome::Malformed => {
                 self.add_encoding_issue(DestinationEncodingIssueKind::MalformedBase64, &source);
-                return;
             }
             Base64DecodingOutcome::InputTooLong => {
                 self.add_limit(DestinationDiscoveryLimit::SecondaryEncodingInputLength);
-                return;
             }
             Base64DecodingOutcome::OutputTooLong => {
                 self.add_limit(DestinationDiscoveryLimit::SecondaryDecodedOutputLength);
-                return;
             }
-            Base64DecodingOutcome::InvalidUtf8 => return,
+            Base64DecodingOutcome::InvalidUtf8 => {}
             Base64DecodingOutcome::NotApplicable => {}
         }
 
@@ -489,16 +629,15 @@ impl DiscoveryState {
                     for issue in html.status.issues() {
                         self.add_encoding_issue(map_html_issue(*issue), &source);
                     }
+                } else if let Some(reference) = discover_destination_reference(&html.decoded) {
+                    transformations.push(
+                        DestinationTransformation::HtmlCharacterReferenceDecoding {
+                            reference_count: html.reference_count,
+                        },
+                    );
+                    self.add_candidate_from_source(reference, decoding, transformations, source);
                     return;
                 }
-
-                let Some(reference) = discover_destination_reference(&html.decoded) else {
-                    return;
-                };
-                transformations.push(DestinationTransformation::HtmlCharacterReferenceDecoding {
-                    reference_count: html.reference_count,
-                });
-                self.add_candidate_from_source(reference, decoding, transformations, source);
             }
             HtmlReferenceDecodingOutcome::InputTooLong => {
                 self.add_limit(DestinationDiscoveryLimit::SecondaryEncodingInputLength);
@@ -507,6 +646,123 @@ impl DiscoveryState {
                 self.add_limit(DestinationDiscoveryLimit::SecondaryDecodedOutputLength);
             }
             HtmlReferenceDecodingOutcome::NotApplicable => {}
+        }
+
+        if source.is_destination_context() {
+            self.examine_compound_query_value(decoding, transformations, source);
+        }
+    }
+
+    fn examine_compound_query_value(
+        &mut self,
+        decoding: DecodingResult,
+        transformations: Vec<DestinationTransformation>,
+        source: CandidateSource,
+    ) {
+        let mut interpreted = decoding.decoded.clone();
+        let mut compound_transformations = transformations;
+
+        if let HtmlReferenceDecodingOutcome::Decoded(html) =
+            decode_html_character_references_complete(&interpreted)
+        {
+            if !html.status.is_complete() {
+                return;
+            }
+            interpreted = html.decoded;
+            compound_transformations.push(
+                DestinationTransformation::HtmlCharacterReferenceDecoding {
+                    reference_count: html.reference_count,
+                },
+            );
+        }
+
+        let Some((prefix, query)) = interpreted.split_once('?') else {
+            return;
+        };
+        if prefix.is_empty() || query.is_empty() {
+            return;
+        }
+
+        let prefix_classification = classify_hostname_first_reference(prefix).0;
+        if !matches!(
+            prefix_classification,
+            HostnameFirstClassification::Supported | HostnameFirstClassification::Ambiguous
+        ) && discover_destination_reference(prefix).is_none()
+        {
+            return;
+        }
+
+        self.add_structure_observation(DestinationStructureKind::CompoundQueryValue, &source);
+
+        let parameter_count = query.split('&').filter(|part| !part.is_empty()).count();
+        if parameter_count > MAX_COMPOUND_QUERY_PARAMETERS {
+            self.add_limit(DestinationDiscoveryLimit::MaximumCompoundParameterCount);
+        }
+
+        for (position, part) in query
+            .split('&')
+            .filter(|part| !part.is_empty())
+            .take(MAX_COMPOUND_QUERY_PARAMETERS)
+            .enumerate()
+        {
+            let Some((raw_name, raw_value)) = part.split_once('=') else {
+                continue;
+            };
+            let name = form_decode_component(raw_name);
+            if !is_destination_parameter(&name) {
+                continue;
+            }
+
+            let inner_decoding = match decode_percent(raw_value) {
+                Ok(result) => result,
+                Err(DecodeError::InputTooLong) => {
+                    self.add_limit(DestinationDiscoveryLimit::DecoderInputLength);
+                    continue;
+                }
+                Err(DecodeError::InvalidUtf8) => continue,
+            };
+            self.observe_decoding_status(&inner_decoding);
+
+            let inner_source = CandidateSource {
+                top_level_parameter_index: source.top_level_parameter_index,
+                source_parameter_index: position,
+                source_parameter: name,
+                depth: source.depth + 1,
+                parent_candidate_index: source.parent_candidate_index,
+            };
+            let reference =
+                if let Some(reference) = discover_destination_reference(&inner_decoding.decoded) {
+                    reference
+                } else {
+                    match classify_hostname_first_reference(&inner_decoding.decoded) {
+                        (HostnameFirstClassification::Supported, Some(reference)) => reference,
+                        (HostnameFirstClassification::Ambiguous, None) => {
+                            self.add_hostname_first_ambiguity(&inner_source);
+                            continue;
+                        }
+                        _ => continue,
+                    }
+                };
+            let mut candidate_transformations = compound_transformations.clone();
+            candidate_transformations.push(DestinationTransformation::CompoundQueryExtraction {
+                parameter_position: position,
+            });
+            if !inner_decoding.steps.is_empty() {
+                candidate_transformations.push(DestinationTransformation::PercentDecoding {
+                    passes: inner_decoding.steps.len(),
+                });
+            }
+
+            self.add_candidate_from_source(
+                reference,
+                decoding.clone(),
+                candidate_transformations,
+                inner_source,
+            );
+
+            if self.candidate_limit_reached {
+                break;
+            }
         }
     }
 
@@ -541,6 +797,40 @@ impl DiscoveryState {
         });
     }
 
+    fn add_structure_observation(
+        &mut self,
+        kind: DestinationStructureKind,
+        source: &CandidateSource,
+    ) {
+        let observation = DestinationStructureObservation {
+            kind,
+            top_level_parameter_index: source.top_level_parameter_index,
+            source_parameter_index: source.source_parameter_index,
+            depth: source.depth,
+            parent_candidate_index: source.parent_candidate_index,
+        };
+        if !self.structure_observations.contains(&observation) {
+            self.structure_observations.push(observation);
+        }
+    }
+
+    fn add_hostname_first_ambiguity(&mut self, source: &CandidateSource) {
+        self.add_structure_observation(
+            DestinationStructureKind::AmbiguousHostnameFirstReference,
+            source,
+        );
+        let issue = DestinationInterpretationIssue {
+            kind: DestinationInterpretationIssueKind::AmbiguousHostnameFirstReference,
+            top_level_parameter_index: source.top_level_parameter_index,
+            source_parameter_index: source.source_parameter_index,
+            depth: source.depth,
+            parent_candidate_index: source.parent_candidate_index,
+        };
+        if !self.interpretation_issues.contains(&issue) {
+            self.interpretation_issues.push(issue);
+        }
+    }
+
     fn add_candidate(
         &mut self,
         reference: DestinationReference,
@@ -558,6 +848,9 @@ impl DiscoveryState {
             DestinationReferenceKind::Absolute { .. } => reference.submitted.clone(),
             DestinationReferenceKind::ProtocolRelative => {
                 format!("https:{}", reference.submitted)
+            }
+            DestinationReferenceKind::HostnameFirst => {
+                format!("https://{}", reference.submitted)
             }
         };
 
@@ -669,13 +962,162 @@ impl DiscoveryState {
             }
         };
 
+        let mut interpretation_kinds = Vec::new();
+        for issue in &self.interpretation_issues {
+            if !interpretation_kinds.contains(&issue.kind) {
+                interpretation_kinds.push(issue.kind);
+            }
+        }
+        let interpretation_coverage = if interpretation_kinds.is_empty() {
+            DestinationInterpretationCoverage::Complete
+        } else {
+            DestinationInterpretationCoverage::Partial {
+                issues: interpretation_kinds,
+            }
+        };
+
         DestinationDiscovery {
             candidates: self.candidates,
             status,
             encoding_coverage,
             encoding_issues: self.encoding_issues,
+            structure_observations: self.structure_observations,
+            interpretation_coverage,
+            interpretation_issues: self.interpretation_issues,
         }
     }
+}
+
+fn is_destination_parameter(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "target"
+            | "url"
+            | "redirect"
+            | "redirect_uri"
+            | "destination"
+            | "dest"
+            | "adurl"
+            | "next"
+            | "continue"
+            | "return"
+            | "return_to"
+    )
+}
+
+fn form_decode_component(value: &str) -> String {
+    url::form_urlencoded::parse(format!("{value}=").as_bytes())
+        .next()
+        .map(|(name, _)| name.into_owned())
+        .unwrap_or_default()
+}
+
+fn reveals_encoded_query_delimiter(decoding: &DecodingResult) -> bool {
+    if decoding.steps.is_empty() {
+        return false;
+    }
+    let original = decoding.original.to_ascii_lowercase();
+    (original.contains("%26") && decoding.decoded.contains('&'))
+        || (original.contains("%3f") && decoding.decoded.contains('?'))
+        || (original.contains("%3d") && decoding.decoded.contains('='))
+}
+
+fn classify_hostname_first_reference(
+    value: &str,
+) -> (HostnameFirstClassification, Option<DestinationReference>) {
+    if value.trim() != value
+        || value.contains(['\\', '@'])
+        || value.chars().any(char::is_control)
+        || value.starts_with('/')
+        || value.contains("://")
+    {
+        return (HostnameFirstClassification::NotApplicable, None);
+    }
+
+    let Some(path_start) = value.find('/') else {
+        return (HostnameFirstClassification::NotApplicable, None);
+    };
+    let authority = &value[..path_start];
+    let path_and_more = &value[path_start..];
+    if path_and_more.starts_with("//") {
+        return if valid_hostname_first_authority(authority) {
+            (HostnameFirstClassification::Ambiguous, None)
+        } else {
+            (HostnameFirstClassification::NotApplicable, None)
+        };
+    }
+    if !valid_hostname_first_authority(authority) {
+        return (HostnameFirstClassification::NotApplicable, None);
+    }
+
+    let parsing_context = format!("https://{value}");
+    let Ok(parsed) = Url::parse(&parsing_context) else {
+        return (HostnameFirstClassification::NotApplicable, None);
+    };
+    let Some(hostname) = parsed.host_str().map(str::to_string) else {
+        return (HostnameFirstClassification::NotApplicable, None);
+    };
+    let mut normalized = parsed
+        .as_str()
+        .strip_prefix("https://")
+        .unwrap_or(parsed.as_str())
+        .to_string();
+    if parsed.port().is_none()
+        && let Some(port) = hostname_first_explicit_port(authority)
+    {
+        let authority_end = normalized.find(['/', '?', '#']).unwrap_or(normalized.len());
+        normalized.insert_str(authority_end, &format!(":{port}"));
+    }
+
+    (
+        HostnameFirstClassification::Supported,
+        Some(DestinationReference {
+            kind: DestinationReferenceKind::HostnameFirst,
+            submitted: value.to_string(),
+            normalized,
+            hostname,
+        }),
+    )
+}
+
+fn valid_hostname_first_authority(authority: &str) -> bool {
+    if authority.is_empty() || !authority.is_ascii() {
+        return false;
+    }
+    let (host, port) = match authority.rsplit_once(':') {
+        Some((host, port)) => (host, Some(port)),
+        None => (authority, None),
+    };
+    if let Some(port) = port
+        && (port.is_empty()
+            || !port.bytes().all(|byte| byte.is_ascii_digit())
+            || port.parse::<u16>().is_err())
+    {
+        return false;
+    }
+    let host = host.strip_suffix('.').unwrap_or(host);
+    let labels = host.split('.').collect::<Vec<_>>();
+    labels.len() >= 2
+        && labels.iter().all(|label| {
+            !label.is_empty()
+                && label.len() <= 63
+                && label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                && label
+                    .as_bytes()
+                    .first()
+                    .is_some_and(u8::is_ascii_alphanumeric)
+                && label
+                    .as_bytes()
+                    .last()
+                    .is_some_and(u8::is_ascii_alphanumeric)
+        })
+}
+
+fn hostname_first_explicit_port(authority: &str) -> Option<u16> {
+    let (_, port) = authority.rsplit_once(':')?;
+    port.parse().ok()
 }
 
 fn map_html_issue(issue: HtmlReferenceIssueKind) -> DestinationEncodingIssueKind {
@@ -1158,5 +1600,154 @@ mod tests {
 
         assert!(discovery.candidates.is_empty());
         assert!(discovery.is_complete());
+    }
+
+    #[test]
+    fn recognizes_hostname_first_references_only_in_destination_contexts() {
+        let supported = discover(
+            "https://top.example/?target=tracking.example%2Fpath&label=ignored.example%2Fpath",
+        );
+
+        assert_eq!(supported.candidates.len(), 1);
+        let candidate = &supported.candidates[0];
+        assert_eq!(
+            candidate.reference.kind,
+            DestinationReferenceKind::HostnameFirst
+        );
+        assert_eq!(candidate.reference.submitted, "tracking.example/path");
+        assert_eq!(candidate.reference.normalized, "tracking.example/path");
+        assert_eq!(candidate.reference.hostname, "tracking.example");
+        assert_eq!(candidate.provenance.source_parameter, "target");
+    }
+
+    #[test]
+    fn preserves_trailing_dot_and_explicit_port_for_hostname_first_references() {
+        let discovery = discover(
+            "https://top.example/?target=tracking.example.%3A443%2Fpath&url=edge.example%3A8443%2Fnext",
+        );
+
+        assert_eq!(discovery.candidates.len(), 2);
+        assert_eq!(
+            discovery.candidates[0].reference.submitted,
+            "tracking.example.:443/path"
+        );
+        assert_eq!(
+            discovery.candidates[0].reference.normalized,
+            "tracking.example.:443/path"
+        );
+        assert_eq!(
+            discovery.candidates[0].reference.hostname,
+            "tracking.example."
+        );
+        assert_eq!(
+            discovery.candidates[1].reference.normalized,
+            "edge.example:8443/next"
+        );
+    }
+
+    #[test]
+    fn rejects_malformed_hostname_first_values_and_records_double_slash_ambiguity() {
+        let discovery = discover(concat!(
+            "https://top.example/?target=tracking.example%2F%2Fpath",
+            "&url=user%40example.test%2Fpath",
+            "&redirect=bad_example.test%2Fpath",
+            "&next=example.test%3A99999%2Fpath",
+            "&dest=example.test%5Cpath"
+        ));
+
+        assert!(discovery.candidates.is_empty());
+        assert_eq!(discovery.interpretation_issues.len(), 1);
+        assert_eq!(
+            discovery.interpretation_coverage.issues(),
+            &[DestinationInterpretationIssueKind::AmbiguousHostnameFirstReference]
+        );
+        assert!(!discovery.is_complete());
+    }
+
+    #[test]
+    fn compound_encoded_destination_example_is_useful_without_promoting_ambiguity() {
+        let discovery = discover(concat!(
+            "https://social.example/link/v2?aid=1988&scene=bio_url&target=",
+            "tracking.example./%2Fpcs/click?fake-id%26amp%3B%26amp%3Badurl=",
+            "%2F%2F%73%74%6F%72%61%67%65%2E%65%78%61%6D%70%6C%65%2Flanding.html",
+            "#synthetic-fragment"
+        ));
+
+        assert_eq!(discovery.candidates.len(), 1);
+        let candidate = &discovery.candidates[0];
+        assert_eq!(
+            candidate.reference.kind,
+            DestinationReferenceKind::ProtocolRelative
+        );
+        assert_eq!(
+            candidate.reference.submitted,
+            "//storage.example/landing.html"
+        );
+        assert_eq!(
+            candidate.reference.normalized,
+            "//storage.example/landing.html"
+        );
+        assert_eq!(candidate.provenance.source_parameter, "adurl");
+        assert_eq!(candidate.provenance.top_level_parameter_index, 2);
+        assert_eq!(candidate.provenance.source_parameter_index, 1);
+        assert_eq!(candidate.provenance.depth, 1);
+        assert_eq!(
+            candidate.provenance.transformations,
+            vec![
+                DestinationTransformation::PercentDecoding { passes: 1 },
+                DestinationTransformation::HtmlCharacterReferenceDecoding { reference_count: 2 },
+                DestinationTransformation::CompoundQueryExtraction {
+                    parameter_position: 1,
+                },
+            ]
+        );
+        assert!(discovery.structure_observations.iter().any(|observation| {
+            observation.kind == DestinationStructureKind::CompoundQueryValue
+        }));
+        assert!(discovery.structure_observations.iter().any(|observation| {
+            observation.kind == DestinationStructureKind::EncodedQueryDelimiter
+        }));
+        assert!(discovery.structure_observations.iter().any(|observation| {
+            observation.kind == DestinationStructureKind::AmbiguousHostnameFirstReference
+        }));
+        assert!(!discovery.is_complete());
+    }
+
+    #[test]
+    fn compound_query_extraction_is_bounded() {
+        let query = (0..=MAX_COMPOUND_QUERY_PARAMETERS)
+            .map(|index| format!("adurl{index}=value"))
+            .collect::<Vec<_>>()
+            .join("&");
+        let input = format!(
+            "https://top.example/?target={}",
+            encode(&format!("tracking.example//path?{query}"))
+        );
+        let discovery = discover(&input);
+
+        assert!(
+            discovery
+                .status
+                .limits()
+                .contains(&DestinationDiscoveryLimit::MaximumCompoundParameterCount)
+        );
+    }
+
+    #[test]
+    fn compound_inner_destination_context_supports_hostname_first_references() {
+        let discovery = discover(
+            "https://top.example/?target=tracking.example%2F%2Fpath%3Fadurl%3Dinner.example%2Flanding",
+        );
+
+        assert_eq!(discovery.candidates.len(), 1);
+        assert_eq!(
+            discovery.candidates[0].reference.kind,
+            DestinationReferenceKind::HostnameFirst
+        );
+        assert_eq!(
+            discovery.candidates[0].reference.submitted,
+            "inner.example/landing"
+        );
+        assert_eq!(discovery.candidates[0].provenance.source_parameter, "adurl");
     }
 }

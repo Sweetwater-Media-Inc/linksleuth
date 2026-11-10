@@ -1,7 +1,8 @@
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::destinations::{
-    DestinationDiscoveryLimit, DestinationEncodingIssueKind, DestinationReferenceKind,
-    DestinationScheme, DestinationTransformation, MAX_DISCOVERED_DESTINATIONS,
+    DestinationDiscoveryLimit, DestinationEncodingIssueKind, DestinationInterpretationIssueKind,
+    DestinationReferenceKind, DestinationScheme, DestinationStructureKind,
+    DestinationTransformation, MAX_COMPOUND_QUERY_PARAMETERS, MAX_DISCOVERED_DESTINATIONS,
 };
 use linksleuth_core::normalization::OriginalPathAnalysis;
 
@@ -28,7 +29,10 @@ fn destination_regression_corpus_matches_structured_expectations() {
 
         metrics.total_cases += 1;
         let fields = line.split('\t').collect::<Vec<_>>();
-        assert_eq!(fields.len(), 9, "invalid corpus row: {line}");
+        assert!(
+            (9..=12).contains(&fields.len()),
+            "invalid corpus row: {line}"
+        );
 
         let id = fields[0];
         let input = expand_input(fields[1]);
@@ -39,6 +43,9 @@ fn destination_regression_corpus_matches_structured_expectations() {
         let expected_reasons = fields[6];
         let expected_path_coverage = fields[7];
         let expected_normalization_count = fields[8].parse::<usize>().unwrap();
+        let expected_structures = fields.get(9).copied().unwrap_or("*");
+        let expected_sources = fields.get(10).copied().unwrap_or("*");
+        let expected_submitted = fields.get(11).copied().unwrap_or("*");
 
         let report = analyze_url(&input)
             .unwrap_or_else(|error| panic!("corpus case {id} failed analysis with {error:?}"));
@@ -103,6 +110,27 @@ fn destination_regression_corpus_matches_structured_expectations() {
                 "transformations for {id}"
             );
         }
+        if expected_structures != "*" {
+            assert_eq!(
+                structure_labels(discovery),
+                expected_structures,
+                "structures for {id}"
+            );
+        }
+        if expected_sources != "*" {
+            assert_eq!(
+                source_labels(discovery),
+                expected_sources,
+                "sources for {id}"
+            );
+        }
+        if expected_submitted != "*" {
+            assert_eq!(
+                submitted_labels(discovery),
+                expected_submitted,
+                "submitted references for {id}"
+            );
+        }
 
         match expected_path_coverage {
             "examined" => assert_eq!(
@@ -141,12 +169,12 @@ fn destination_regression_corpus_matches_structured_expectations() {
     assert_eq!(
         metrics,
         CorpusMetrics {
-            total_cases: 42,
-            expected_candidate_positive_cases: 21,
-            expected_candidate_negative_cases: 21,
+            total_cases: 62,
+            expected_candidate_positive_cases: 30,
+            expected_candidate_negative_cases: 32,
             unexpected_candidate_findings: 0,
             missed_expected_candidate_findings: 0,
-            incomplete_or_unsupported_cases: 7,
+            incomplete_or_unsupported_cases: 18,
         }
     );
 }
@@ -178,6 +206,16 @@ fn expand_input(input: &str) -> String {
         "@generate-secondary-output-limit" => {
             format!("https://top.example/?payload={}", "A".repeat(12 * 1024))
         }
+        "@generate-compound-parameter-limit" => {
+            let query = (0..=MAX_COMPOUND_QUERY_PARAMETERS)
+                .map(|index| format!("p{index}=value"))
+                .collect::<Vec<_>>()
+                .join("&");
+            format!(
+                "https://top.example/?target={}",
+                percent_encode(&format!("tracking.example//path?{query}"))
+            )
+        }
         input => input.to_string(),
     }
 }
@@ -200,6 +238,7 @@ fn candidate_kind_labels(
                 scheme: DestinationScheme::Https,
             } => "https",
             DestinationReferenceKind::ProtocolRelative => "protocol",
+            DestinationReferenceKind::HostnameFirst => "hostname-first",
         })
         .collect::<Vec<_>>()
         .join(",")
@@ -224,6 +263,7 @@ fn transformation_labels(
                     DestinationTransformation::PercentDecoding { .. } => "percent",
                     DestinationTransformation::Base64Decoding { .. } => "base64",
                     DestinationTransformation::HtmlCharacterReferenceDecoding { .. } => "html",
+                    DestinationTransformation::CompoundQueryExtraction { .. } => "compound",
                 })
                 .collect::<Vec<_>>()
                 .join("+")
@@ -241,6 +281,9 @@ fn reason_labels(discovery: &linksleuth_core::destinations::DestinationDiscovery
             DestinationDiscoveryLimit::MaximumNestingDepth => "maximum-depth",
             DestinationDiscoveryLimit::MaximumCandidateCount => "maximum-candidates",
             DestinationDiscoveryLimit::MaximumNestedParameterCount => "maximum-nested-parameters",
+            DestinationDiscoveryLimit::MaximumCompoundParameterCount => {
+                "maximum-compound-parameters"
+            }
             DestinationDiscoveryLimit::DecoderInputLength => "percent-input-limit",
             DestinationDiscoveryLimit::DecodingPassLimit => "percent-pass-limit",
             DestinationDiscoveryLimit::NestedUrlLength => "nested-url-limit",
@@ -262,10 +305,62 @@ fn reason_labels(discovery: &linksleuth_core::destinations::DestinationDiscovery
                 DestinationEncodingIssueKind::InvalidHtmlUnicodeScalar => "invalid-html-scalar",
             }),
     );
+    reasons.extend(
+        discovery
+            .interpretation_coverage
+            .issues()
+            .iter()
+            .map(|issue| match issue {
+                DestinationInterpretationIssueKind::AmbiguousHostnameFirstReference => {
+                    "ambiguous-hostname-first"
+                }
+            }),
+    );
 
     if reasons.is_empty() {
         "none".to_string()
     } else {
         reasons.join(",")
     }
+}
+
+fn structure_labels(discovery: &linksleuth_core::destinations::DestinationDiscovery) -> String {
+    if discovery.structure_observations.is_empty() {
+        return "-".to_string();
+    }
+    discovery
+        .structure_observations
+        .iter()
+        .map(|observation| match observation.kind {
+            DestinationStructureKind::MultiplePercentDecodingTransformations => "multi-percent",
+            DestinationStructureKind::EncodedQueryDelimiter => "encoded-delimiter",
+            DestinationStructureKind::CompoundQueryValue => "compound",
+            DestinationStructureKind::AmbiguousHostnameFirstReference => "ambiguous-hostname-first",
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn source_labels(discovery: &linksleuth_core::destinations::DestinationDiscovery) -> String {
+    if discovery.candidates.is_empty() {
+        return "-".to_string();
+    }
+    discovery
+        .candidates
+        .iter()
+        .map(|candidate| candidate.provenance.source_parameter.as_str())
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn submitted_labels(discovery: &linksleuth_core::destinations::DestinationDiscovery) -> String {
+    if discovery.candidates.is_empty() {
+        return "-".to_string();
+    }
+    discovery
+        .candidates
+        .iter()
+        .map(|candidate| candidate.reference.submitted.as_str())
+        .collect::<Vec<_>>()
+        .join(",")
 }

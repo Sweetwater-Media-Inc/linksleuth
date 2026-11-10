@@ -391,6 +391,54 @@ mod tests {
     }
 
     #[test]
+    fn compound_example_exposes_only_fixed_structural_findings() {
+        let input = concat!(
+            "https://social.example/link/v2?aid=1988&scene=bio_url&target=",
+            "tracking.example./%2Fpcs/click?fake-id%26amp%3B%26amp%3Badurl=",
+            "%2F%2F%73%74%6F%72%61%67%65%2E%65%78%61%6D%70%6C%65%2Flanding.html",
+            "#synthetic-fragment"
+        );
+        let json = analyze_for_browser_json(input);
+        let value: Value = serde_json::from_str(&json).unwrap();
+        let identifiers = value["report"]["observations"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|observation| observation["identifier"].as_str().unwrap())
+            .collect::<Vec<_>>();
+
+        for expected in [
+            "destination.protocol-relative-candidate",
+            "structure.encoded-query-delimiter",
+            "structure.compound-query-value",
+            "structure.hostname-first-ambiguous",
+        ] {
+            assert!(identifiers.contains(&expected));
+        }
+        let traversal = value["report"]["completeness"]["stages"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|stage| stage["identifier"] == "destination-traversal")
+            .unwrap();
+        assert_eq!(traversal["status"], "partially-examined");
+        assert_eq!(
+            traversal["reasons"][0]["identifier"],
+            "destination-hostname-first-ambiguous"
+        );
+        for sensitive in [
+            "social.example",
+            "tracking.example",
+            "storage.example",
+            "fake-id",
+            "adurl",
+            "synthetic-fragment",
+        ] {
+            assert!(!json.contains(sensitive));
+        }
+    }
+
+    #[test]
     fn no_observations_do_not_add_a_safety_verdict() {
         let json = analyze_for_browser_json("https://ordinary.example/products?category=books");
         let value: Value = serde_json::from_str(&json).unwrap();

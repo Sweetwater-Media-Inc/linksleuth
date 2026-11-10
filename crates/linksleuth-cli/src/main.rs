@@ -257,6 +257,13 @@ fn main() {
                                         "references"
                                     }
                                 ),
+                                DestinationTransformation::CompoundQueryExtraction {
+                                    parameter_position,
+                                } => println!(
+                                    "    {}. Compound query extraction (inner parameter {})",
+                                    step + 1,
+                                    parameter_position + 1
+                                ),
                             }
                         }
                     }
@@ -287,6 +294,23 @@ fn main() {
                     if let Some(parent) = issue.parent_candidate_index {
                         println!("  Parent candidate: {}", parent + 1);
                     }
+                    println!("  Reason: {}", issue.kind.explanation());
+                }
+
+                for observation in &report.destination_discovery.structure_observations {
+                    println!(
+                        "\nStructural observation: {}",
+                        observation.kind.identifier()
+                    );
+                    println!(
+                        "  Top-level parameter position: {}",
+                        observation.top_level_parameter_index + 1
+                    );
+                    println!("  Discovery depth: {}", observation.depth);
+                }
+
+                for issue in &report.destination_discovery.interpretation_issues {
+                    println!("\nDestination interpretation incomplete");
                     println!("  Reason: {}", issue.kind.explanation());
                 }
 
@@ -321,6 +345,7 @@ fn destination_kind_label(kind: DestinationReferenceKind) -> &'static str {
             scheme: DestinationScheme::Https,
         } => "Absolute HTTPS candidate URL",
         DestinationReferenceKind::ProtocolRelative => "Protocol-relative reference",
+        DestinationReferenceKind::HostnameFirst => "Hostname-first reference",
     }
 }
 

@@ -108,10 +108,6 @@
             <p class="step-label">Local analysis</p>
             <h2 id="results-heading" tabindex="-1">What Clue observed</h2>
           </div>
-          <div class="schema-meta" aria-label="Report schema versions">
-            <span>Wire <strong id="wire-version"></strong></span>
-            <span>Report <strong id="consumer-version"></strong></span>
-          </div>
         </div>
 
         <div id="observations" class="observations"></div>
@@ -120,15 +116,24 @@
           <div class="completeness-intro">
             <div>
               <p class="step-label">Analysis coverage</p>
-              <h3 id="completeness-heading">What was examined</h3>
+              <h3 id="completeness-heading">What Clue could examine</h3>
             </div>
-            <p id="overall-completeness" class="coverage-label"></p>
           </div>
-          <p class="coverage-note">
-            Completion applies only to LinkSleuth's supported, bounded analysis.
-            It is not a safety verdict.
-          </p>
-          <div id="completeness-stages" class="stage-grid"></div>
+          <p id="overall-completeness" class="coverage-summary"></p>
+          <p class="coverage-note">This does not mean the link is safe.</p>
+          <div id="coverage-limitations" class="coverage-limitations" hidden></div>
+          <details id="coverage-details" class="coverage-details">
+            <summary>What Clue examined</summary>
+            <div id="completeness-stages" class="stage-grid"></div>
+          </details>
+          <details class="result-about">
+            <summary>About this result</summary>
+            <p>
+              Clue used browser contract <span id="wire-version"></span> and
+              consumer report <span id="consumer-version"></span>. These
+              version numbers help technical integrations check compatibility.
+            </p>
+          </details>
         </section>
 
         <div class="summary-action">

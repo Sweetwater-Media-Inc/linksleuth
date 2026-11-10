@@ -31,8 +31,9 @@ use std::fmt;
 use crate::analysis::AnalysisReport;
 use crate::decoder::{DecodeError, DecodingStatus};
 use crate::destinations::{
-    DestinationDiscoveryLimit, DestinationEncodingIssueKind, DestinationReferenceKind,
-    DestinationScheme, DestinationTransformation,
+    DestinationDiscoveryLimit, DestinationEncodingIssueKind, DestinationInterpretationIssueKind,
+    DestinationReferenceKind, DestinationScheme, DestinationStructureKind,
+    DestinationTransformation,
 };
 use crate::encodings::{Base64Alphabet, Base64Padding};
 use crate::normalization::{
@@ -96,9 +97,14 @@ pub enum ConsumerObservationKind {
     EncodedParentDirectoryNormalization,
     PotentialAbsoluteDestination,
     PotentialProtocolRelativeReference,
+    PotentialHostnameFirstReference,
     NestedDestinationCandidate,
     Base64DerivedDestination,
     HtmlReferenceDerivedDestination,
+    MultiplePercentDecodingTransformations,
+    EncodedQueryDelimiter,
+    CompoundQueryValue,
+    AmbiguousHostnameFirstReference,
     MalformedPercentEncoding,
     PercentDecodingPassLimit,
     UnsupportedOriginalPathEvidence,
@@ -112,9 +118,16 @@ impl ConsumerObservationKind {
             Self::EncodedParentDirectoryNormalization => "normalization.encoded-parent-directory",
             Self::PotentialAbsoluteDestination => "destination.absolute-candidate",
             Self::PotentialProtocolRelativeReference => "destination.protocol-relative-candidate",
+            Self::PotentialHostnameFirstReference => "destination.hostname-first-candidate",
             Self::NestedDestinationCandidate => "destination.nested-candidate",
             Self::Base64DerivedDestination => "destination.base64-derived-candidate",
             Self::HtmlReferenceDerivedDestination => "destination.html-reference-derived-candidate",
+            Self::MultiplePercentDecodingTransformations => {
+                "encoding.multiple-percent-transformations"
+            }
+            Self::EncodedQueryDelimiter => "structure.encoded-query-delimiter",
+            Self::CompoundQueryValue => "structure.compound-query-value",
+            Self::AmbiguousHostnameFirstReference => "structure.hostname-first-ambiguous",
             Self::MalformedPercentEncoding => "decoding.malformed-percent-encoding",
             Self::PercentDecodingPassLimit => "decoding.percent-pass-limit",
             Self::UnsupportedOriginalPathEvidence => "coverage.original-path-unsupported",
@@ -126,11 +139,22 @@ impl ConsumerObservationKind {
     pub const fn title(self) -> &'static str {
         match self {
             Self::EncodedParentDirectoryNormalization => "Encoded parent-directory normalization",
-            Self::PotentialAbsoluteDestination => "Potential embedded destination",
-            Self::PotentialProtocolRelativeReference => "Potential protocol-relative reference",
-            Self::NestedDestinationCandidate => "Nested destination candidate",
-            Self::Base64DerivedDestination => "Base64-derived destination candidate",
-            Self::HtmlReferenceDerivedDestination => "HTML-reference-derived destination candidate",
+            Self::PotentialAbsoluteDestination => "This link contains another web address",
+            Self::PotentialProtocolRelativeReference => {
+                "This link contains a web address without a stated scheme"
+            }
+            Self::PotentialHostnameFirstReference => {
+                "This link contains a hostname-first web address"
+            }
+            Self::NestedDestinationCandidate => "A web address appears inside another value",
+            Self::Base64DerivedDestination => "An encoded value contains a web address",
+            Self::HtmlReferenceDerivedDestination => "HTML-style encoding contains a web address",
+            Self::MultiplePercentDecodingTransformations => "A value used multiple encoding layers",
+            Self::EncodedQueryDelimiter => "Encoded query separators were found",
+            Self::CompoundQueryValue => "A parameter contains its own query structure",
+            Self::AmbiguousHostnameFirstReference => {
+                "A hostname-like reference could not be classified confidently"
+            }
             Self::MalformedPercentEncoding => "Malformed percent encoding",
             Self::PercentDecodingPassLimit => "Percent-decoding limit reached",
             Self::UnsupportedOriginalPathEvidence => "Original path evidence unsupported",
@@ -145,10 +169,13 @@ impl ConsumerObservationKind {
                 "The submitted path included encoded parent-directory syntax that the URL parser normalized. This structural observation does not establish intent."
             }
             Self::PotentialAbsoluteDestination => {
-                "A complete HTTP or HTTPS URL appeared in a supported query value. This is a potential destination, not a verified navigation or redirect."
+                "A complete URL was found inside this link. Some websites use embedded addresses to guide navigation, but Clue has not visited either website or verified a redirect."
             }
             Self::PotentialProtocolRelativeReference => {
                 "A complete protocol-relative URL reference appeared in a supported query value. Its destination scheme and any navigation remain unverified."
+            }
+            Self::PotentialHostnameFirstReference => {
+                "A complete hostname and path appeared in a supported destination parameter. No HTTP or HTTPS scheme was inferred, and navigation remains unverified."
             }
             Self::NestedDestinationCandidate => {
                 "A potential destination appeared inside a query parameter of another candidate. This structure does not establish a redirect chain."
@@ -158,6 +185,18 @@ impl ConsumerObservationKind {
             }
             Self::HtmlReferenceDerivedDestination => {
                 "A complete destination reference appeared after interpreting supported HTML character references. Navigation remains unverified."
+            }
+            Self::MultiplePercentDecodingTransformations => {
+                "A query value changed during more than one bounded percent-decoding pass. Layered encoding is structural evidence and does not establish intent."
+            }
+            Self::EncodedQueryDelimiter => {
+                "Percent decoding revealed query separators such as an ampersand, question mark, or equals sign. This does not prove the value is used for navigation."
+            }
+            Self::CompoundQueryValue => {
+                "A supported destination parameter contained a bounded inner query structure. Clue examined only recognized inner parameter forms and did not follow them."
+            }
+            Self::AmbiguousHostnameFirstReference => {
+                "A destination-bearing value began like a hostname but used an ambiguous authority and path boundary. Clue did not repair it or treat it as a verified destination."
             }
             Self::MalformedPercentEncoding => {
                 "A query value contained malformed percent encoding. LinkSleuth preserved the submitted text rather than guessing a replacement."
@@ -330,6 +369,7 @@ pub enum ConsumerDestinationKind {
     AbsoluteHttp,
     AbsoluteHttps,
     ProtocolRelative,
+    HostnameFirst,
 }
 
 #[non_exhaustive]
@@ -344,6 +384,9 @@ pub enum ConsumerTransformation {
     },
     HtmlCharacterReferenceDecoding {
         reference_count: usize,
+    },
+    CompoundQueryExtraction {
+        parameter_position: usize,
     },
 }
 
@@ -558,6 +601,16 @@ fn build_observations(report: &AnalysisReport, include_evidence: bool) -> Vec<Co
         evidence_references(include_evidence, "candidate", &protocol_indices),
     );
 
+    let hostname_first_indices = candidate_indices(report, |candidate| {
+        candidate.reference.kind == DestinationReferenceKind::HostnameFirst
+    });
+    push_observation(
+        &mut observations,
+        ConsumerObservationKind::PotentialHostnameFirstReference,
+        hostname_first_indices.len(),
+        evidence_references(include_evidence, "candidate", &hostname_first_indices),
+    );
+
     let nested_indices = candidate_indices(report, |candidate| candidate.provenance.depth > 0);
     push_observation(
         &mut observations,
@@ -603,6 +656,38 @@ fn build_observations(report: &AnalysisReport, include_evidence: bool) -> Vec<Co
         html_indices.len(),
         evidence_references(include_evidence, "candidate", &html_indices),
     );
+
+    for (structure_kind, consumer_kind) in [
+        (
+            DestinationStructureKind::MultiplePercentDecodingTransformations,
+            ConsumerObservationKind::MultiplePercentDecodingTransformations,
+        ),
+        (
+            DestinationStructureKind::EncodedQueryDelimiter,
+            ConsumerObservationKind::EncodedQueryDelimiter,
+        ),
+        (
+            DestinationStructureKind::CompoundQueryValue,
+            ConsumerObservationKind::CompoundQueryValue,
+        ),
+        (
+            DestinationStructureKind::AmbiguousHostnameFirstReference,
+            ConsumerObservationKind::AmbiguousHostnameFirstReference,
+        ),
+    ] {
+        let occurrence_count = report
+            .destination_discovery
+            .structure_observations
+            .iter()
+            .filter(|observation| observation.kind == structure_kind)
+            .count();
+        push_observation(
+            &mut observations,
+            consumer_kind,
+            occurrence_count,
+            Vec::new(),
+        );
+    }
 
     let malformed_percent_indices = report
         .parameters
@@ -773,6 +858,7 @@ fn build_evidence(report: &AnalysisReport) -> Vec<ConsumerEvidence> {
                 scheme: DestinationScheme::Https,
             } => ConsumerDestinationKind::AbsoluteHttps,
             DestinationReferenceKind::ProtocolRelative => ConsumerDestinationKind::ProtocolRelative,
+            DestinationReferenceKind::HostnameFirst => ConsumerDestinationKind::HostnameFirst,
         };
         let parent_evidence_identifier = candidate
             .provenance
@@ -884,6 +970,11 @@ fn consumer_transformation(transformation: &DestinationTransformation) -> Consum
                 reference_count: *reference_count,
             }
         }
+        DestinationTransformation::CompoundQueryExtraction { parameter_position } => {
+            ConsumerTransformation::CompoundQueryExtraction {
+                parameter_position: *parameter_position,
+            }
+        }
     }
 }
 
@@ -979,12 +1070,31 @@ fn build_completeness(report: &AnalysisReport) -> ConsumerCompleteness {
     }
     let destination_traversal = ConsumerStageCompleteness {
         stage: ConsumerAnalysisStage::DestinationTraversal,
-        status: if traversal_reasons.is_empty() {
+        status: if !traversal_reasons.is_empty() {
+            ConsumerStageStatus::ResourceLimited
+        } else if report
+            .destination_discovery
+            .interpretation_coverage
+            .is_complete()
+        {
             ConsumerStageStatus::CompleteWithinSupportedScope
         } else {
-            ConsumerStageStatus::ResourceLimited
+            ConsumerStageStatus::PartiallyExamined
         },
-        reasons: traversal_reasons,
+        reasons: {
+            for issue in report
+                .destination_discovery
+                .interpretation_coverage
+                .issues()
+            {
+                add_reason(
+                    &mut traversal_reasons,
+                    interpretation_issue_identifier(*issue),
+                    issue.explanation(),
+                );
+            }
+            traversal_reasons
+        },
     };
 
     for issue in report.destination_discovery.encoding_coverage.issues() {
@@ -1058,6 +1168,7 @@ fn is_traversal_limit(limit: DestinationDiscoveryLimit) -> bool {
         DestinationDiscoveryLimit::MaximumNestingDepth
             | DestinationDiscoveryLimit::MaximumCandidateCount
             | DestinationDiscoveryLimit::MaximumNestedParameterCount
+            | DestinationDiscoveryLimit::MaximumCompoundParameterCount
             | DestinationDiscoveryLimit::NestedUrlLength
     )
 }
@@ -1077,12 +1188,23 @@ fn destination_limit_identifier(limit: DestinationDiscoveryLimit) -> &'static st
         DestinationDiscoveryLimit::MaximumNestedParameterCount => {
             "destination-maximum-nested-parameters"
         }
+        DestinationDiscoveryLimit::MaximumCompoundParameterCount => {
+            "destination-maximum-compound-parameters"
+        }
         DestinationDiscoveryLimit::DecoderInputLength => "percent-decoding-input-limit",
         DestinationDiscoveryLimit::DecodingPassLimit => "percent-decoding-pass-limit",
         DestinationDiscoveryLimit::NestedUrlLength => "destination-nested-url-limit",
         DestinationDiscoveryLimit::SecondaryEncodingInputLength => "secondary-encoding-input-limit",
         DestinationDiscoveryLimit::SecondaryDecodedOutputLength => {
             "secondary-encoding-output-limit"
+        }
+    }
+}
+
+fn interpretation_issue_identifier(issue: DestinationInterpretationIssueKind) -> &'static str {
+    match issue {
+        DestinationInterpretationIssueKind::AmbiguousHostnameFirstReference => {
+            "destination-hostname-first-ambiguous"
         }
     }
 }
@@ -1291,6 +1413,7 @@ mod tests {
                 "destination.protocol-relative-candidate",
                 "destination.nested-candidate",
                 "destination.base64-derived-candidate",
+                "encoding.multiple-percent-transformations",
                 "decoding.malformed-percent-encoding",
                 "decoding.percent-pass-limit",
             ]
@@ -1480,9 +1603,14 @@ mod tests {
             ConsumerObservationKind::EncodedParentDirectoryNormalization,
             ConsumerObservationKind::PotentialAbsoluteDestination,
             ConsumerObservationKind::PotentialProtocolRelativeReference,
+            ConsumerObservationKind::PotentialHostnameFirstReference,
             ConsumerObservationKind::NestedDestinationCandidate,
             ConsumerObservationKind::Base64DerivedDestination,
             ConsumerObservationKind::HtmlReferenceDerivedDestination,
+            ConsumerObservationKind::MultiplePercentDecodingTransformations,
+            ConsumerObservationKind::EncodedQueryDelimiter,
+            ConsumerObservationKind::CompoundQueryValue,
+            ConsumerObservationKind::AmbiguousHostnameFirstReference,
             ConsumerObservationKind::MalformedPercentEncoding,
             ConsumerObservationKind::PercentDecodingPassLimit,
             ConsumerObservationKind::UnsupportedOriginalPathEvidence,
@@ -1496,6 +1624,59 @@ mod tests {
             assert!(!text.contains("this link is malicious"));
             assert!(!text.contains("redirects to"));
             assert!(!text.contains("final destination"));
+        }
+    }
+
+    #[test]
+    fn motivating_compound_example_has_privacy_safe_observations_and_partial_coverage() {
+        let private_values = [
+            "social.example",
+            "tracking.example",
+            "storage.example",
+            "synthetic-fragment",
+            "fake-id",
+            "adurl",
+        ];
+        let analysis = analyze_url(concat!(
+            "https://social.example/link/v2?aid=1988&scene=bio_url&target=",
+            "tracking.example./%2Fpcs/click?fake-id%26amp%3B%26amp%3Badurl=",
+            "%2F%2F%73%74%6F%72%61%67%65%2E%65%78%61%6D%70%6C%65%2Flanding.html",
+            "#synthetic-fragment"
+        ))
+        .unwrap();
+        let report = create_consumer_report(&analysis, ConsumerReportOptions::default());
+
+        for kind in [
+            ConsumerObservationKind::PotentialProtocolRelativeReference,
+            ConsumerObservationKind::NestedDestinationCandidate,
+            ConsumerObservationKind::HtmlReferenceDerivedDestination,
+            ConsumerObservationKind::EncodedQueryDelimiter,
+            ConsumerObservationKind::CompoundQueryValue,
+            ConsumerObservationKind::AmbiguousHostnameFirstReference,
+        ] {
+            assert_eq!(observation(&report, kind).occurrence_count(), 1);
+        }
+        let traversal = report
+            .completeness()
+            .stages()
+            .iter()
+            .find(|stage| stage.stage() == ConsumerAnalysisStage::DestinationTraversal)
+            .unwrap();
+        assert_eq!(traversal.status(), ConsumerStageStatus::PartiallyExamined);
+        assert_eq!(
+            traversal.reasons()[0].identifier(),
+            "destination-hostname-first-ambiguous"
+        );
+
+        let debug = format!("{report:?}");
+        let rendered = report
+            .observations()
+            .iter()
+            .map(|item| format!("{} {}", item.title(), item.explanation()))
+            .collect::<String>();
+        for secret in private_values {
+            assert!(!debug.contains(secret));
+            assert!(!rendered.contains(secret));
         }
     }
 

@@ -8,6 +8,12 @@ completeness.
 Clue does not fetch the entered URL, load discovered destinations, use a remote
 analysis service, or decide whether a URL is safe or malicious.
 
+Milestone 6.17 adds plain-language structural observations for bounded
+hostname-first and compound-query forms. The primary result view omits internal
+identifiers and schema badges, uses full-width observation rows, and keeps the
+four technical coverage stages in an accessible **What Clue examined**
+disclosure. Encountered limitations remain visible without expanding it.
+
 ## Tool versions
 
 The checked-in lockfiles and build script currently target:
@@ -111,6 +117,10 @@ completeness stages, fixed reasons, and the absence of evidence references.
 
 An unknown version or malformed response produces a fixed compatibility error.
 The raw response is never rendered as a fallback.
+
+Milestone 6.17 retains both schema versions because it adds observation values
+through the existing collections without changing the wire shape or disclosure
+contract. Version information remains available under **About this result**.
 
 ## Privacy boundary
 

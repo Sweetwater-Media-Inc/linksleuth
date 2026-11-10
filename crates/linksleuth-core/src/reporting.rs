@@ -4,7 +4,7 @@ use crate::analysis::AnalysisReport;
 use crate::decoder::DecodingStatus;
 use crate::destinations::{
     DestinationDiscoveryStatus, DestinationEncodingCoverage, DestinationReferenceKind,
-    DestinationTransformation,
+    DestinationStructureKind, DestinationTransformation,
 };
 use crate::normalization::{NormalizationKind, OriginalPathAnalysis};
 
@@ -98,8 +98,13 @@ pub enum ShareableFindingKind {
     EncodedParentDirectorySegment,
     PotentialEmbeddedDestination,
     PotentialProtocolRelativeReference,
+    PotentialHostnameFirstReference,
     PotentialBase64EncodedDestination,
     PotentialHtmlCharacterReferenceEncodedDestination,
+    MultiplePercentDecodingTransformations,
+    EncodedQueryDelimiter,
+    CompoundQueryValue,
+    AmbiguousHostnameFirstReference,
     MalformedPercentEncoding,
     DecodingPassLimitReached,
     DestinationDiscoveryIncomplete,
@@ -125,11 +130,22 @@ impl ShareableFinding {
             ShareableFindingKind::PotentialProtocolRelativeReference => {
                 "Potential protocol-relative reference"
             }
+            ShareableFindingKind::PotentialHostnameFirstReference => {
+                "Potential hostname-first reference"
+            }
             ShareableFindingKind::PotentialBase64EncodedDestination => {
                 "Potential Base64-encoded destination"
             }
             ShareableFindingKind::PotentialHtmlCharacterReferenceEncodedDestination => {
                 "Potential HTML-reference-encoded destination"
+            }
+            ShareableFindingKind::MultiplePercentDecodingTransformations => {
+                "Multiple percent-decoding transformations"
+            }
+            ShareableFindingKind::EncodedQueryDelimiter => "Encoded query delimiters",
+            ShareableFindingKind::CompoundQueryValue => "Compound query value",
+            ShareableFindingKind::AmbiguousHostnameFirstReference => {
+                "Ambiguous hostname-first reference"
             }
             ShareableFindingKind::MalformedPercentEncoding => "Malformed percent encoding",
             ShareableFindingKind::DecodingPassLimitReached => "Decoding pass limit reached",
@@ -156,6 +172,10 @@ impl ShareableFinding {
                 "A protocol-relative URL reference was identified within",
                 "a query parameter. No scheme or redirect has been verified.",
             ],
+            ShareableFindingKind::PotentialHostnameFirstReference => &[
+                "A complete hostname and path were identified in a supported",
+                "destination parameter. No scheme or redirect was inferred.",
+            ],
             ShareableFindingKind::PotentialBase64EncodedDestination => &[
                 "A complete destination reference was identified after bounded",
                 "Base64 decoding. Encoding does not establish intent or navigation.",
@@ -163,6 +183,22 @@ impl ShareableFinding {
             ShareableFindingKind::PotentialHtmlCharacterReferenceEncodedDestination => &[
                 "A complete destination reference was identified after interpreting",
                 "supported HTML references. No navigation has been verified.",
+            ],
+            ShareableFindingKind::MultiplePercentDecodingTransformations => &[
+                "A query value changed during more than one bounded percent-decoding",
+                "pass. Layered encoding does not establish intent.",
+            ],
+            ShareableFindingKind::EncodedQueryDelimiter => &[
+                "Percent decoding revealed one or more query separators.",
+                "This structural evidence does not establish navigation.",
+            ],
+            ShareableFindingKind::CompoundQueryValue => &[
+                "A supported destination parameter contained a bounded inner",
+                "query structure. No navigation was performed.",
+            ],
+            ShareableFindingKind::AmbiguousHostnameFirstReference => &[
+                "A hostname-like reference used an ambiguous authority boundary.",
+                "It was not repaired or classified as a destination.",
             ],
             ShareableFindingKind::MalformedPercentEncoding => &[
                 "One or more query parameters contained malformed percent",
@@ -212,6 +248,23 @@ pub fn create_shareable_report_with_options(
         .candidates
         .iter()
         .filter(|candidate| candidate.reference.kind == DestinationReferenceKind::ProtocolRelative)
+        .count();
+    let absolute_destination_count = report
+        .destination_discovery
+        .candidates
+        .iter()
+        .filter(|candidate| {
+            matches!(
+                candidate.reference.kind,
+                DestinationReferenceKind::Absolute { .. }
+            )
+        })
+        .count();
+    let hostname_first_destination_count = report
+        .destination_discovery
+        .candidates
+        .iter()
+        .filter(|candidate| candidate.reference.kind == DestinationReferenceKind::HostnameFirst)
         .count();
     let base64_destination_count = report
         .destination_discovery
@@ -271,7 +324,7 @@ pub fn create_shareable_report_with_options(
         ));
     }
 
-    if embedded_destination_count > protocol_relative_destination_count {
+    if absolute_destination_count > 0 {
         findings.push(ShareableFinding::new(
             ShareableFindingKind::PotentialEmbeddedDestination,
         ));
@@ -280,6 +333,12 @@ pub fn create_shareable_report_with_options(
     if protocol_relative_destination_count > 0 {
         findings.push(ShareableFinding::new(
             ShareableFindingKind::PotentialProtocolRelativeReference,
+        ));
+    }
+
+    if hostname_first_destination_count > 0 {
+        findings.push(ShareableFinding::new(
+            ShareableFindingKind::PotentialHostnameFirstReference,
         ));
     }
 
@@ -317,6 +376,34 @@ pub fn create_shareable_report_with_options(
         findings.push(ShareableFinding::new(
             ShareableFindingKind::DestinationEncodingAnalysisIncomplete,
         ));
+    }
+
+    for (structure_kind, finding_kind) in [
+        (
+            DestinationStructureKind::MultiplePercentDecodingTransformations,
+            ShareableFindingKind::MultiplePercentDecodingTransformations,
+        ),
+        (
+            DestinationStructureKind::EncodedQueryDelimiter,
+            ShareableFindingKind::EncodedQueryDelimiter,
+        ),
+        (
+            DestinationStructureKind::CompoundQueryValue,
+            ShareableFindingKind::CompoundQueryValue,
+        ),
+        (
+            DestinationStructureKind::AmbiguousHostnameFirstReference,
+            ShareableFindingKind::AmbiguousHostnameFirstReference,
+        ),
+    ] {
+        if report
+            .destination_discovery
+            .structure_observations
+            .iter()
+            .any(|observation| observation.kind == structure_kind)
+        {
+            findings.push(ShareableFinding::new(finding_kind));
+        }
     }
 
     ShareableReport {
@@ -420,6 +507,7 @@ mod tests {
                 ShareableFinding::new(ShareableFindingKind::MalformedPercentEncoding),
                 ShareableFinding::new(ShareableFindingKind::DecodingPassLimitReached),
                 ShareableFinding::new(ShareableFindingKind::DestinationDiscoveryIncomplete),
+                ShareableFinding::new(ShareableFindingKind::MultiplePercentDecodingTransformations,),
             ]
         );
         assert_eq!(
@@ -490,6 +578,8 @@ mod tests {
             vec![
                 ShareableFinding::new(ShareableFindingKind::PotentialEmbeddedDestination),
                 ShareableFinding::new(ShareableFindingKind::PotentialProtocolRelativeReference),
+                ShareableFinding::new(ShareableFindingKind::MultiplePercentDecodingTransformations,),
+                ShareableFinding::new(ShareableFindingKind::EncodedQueryDelimiter),
             ]
         );
 
@@ -498,6 +588,39 @@ mod tests {
         assert!(!output.contains("middle.example"));
         assert!(!output.contains("nested.example"));
         assert!(!output.contains("/private"));
+    }
+
+    #[test]
+    fn shareable_compound_summary_uses_only_fixed_privacy_reduced_findings() {
+        let report = analyze_url(concat!(
+            "https://social.example/link/v2?aid=1988&scene=bio_url&target=",
+            "tracking.example./%2Fpcs/click?fake-id%26amp%3B%26amp%3Badurl=",
+            "%2F%2F%73%74%6F%72%61%67%65%2E%65%78%61%6D%70%6C%65%2Flanding.html",
+            "#synthetic-fragment"
+        ))
+        .unwrap();
+        let shared = create_shareable_report(&report);
+
+        for kind in [
+            ShareableFindingKind::PotentialProtocolRelativeReference,
+            ShareableFindingKind::PotentialHtmlCharacterReferenceEncodedDestination,
+            ShareableFindingKind::EncodedQueryDelimiter,
+            ShareableFindingKind::CompoundQueryValue,
+            ShareableFindingKind::AmbiguousHostnameFirstReference,
+        ] {
+            assert!(shared.findings.contains(&ShareableFinding::new(kind)));
+        }
+        let output = format!("{shared:?}");
+        for sensitive in [
+            "social.example",
+            "tracking.example",
+            "storage.example",
+            "fake-id",
+            "adurl",
+            "synthetic-fragment",
+        ] {
+            assert!(!output.contains(sensitive));
+        }
     }
 
     #[test]

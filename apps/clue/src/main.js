@@ -21,6 +21,8 @@ const resultsHeading = requiredElement("results-heading");
 const observationsContainer = requiredElement("observations");
 const stagesContainer = requiredElement("completeness-stages");
 const overallCompleteness = requiredElement("overall-completeness");
+const coverageLimitations = requiredElement("coverage-limitations");
+const coverageDetails = requiredElement("coverage-details");
 const wireVersion = requiredElement("wire-version");
 const consumerVersion = requiredElement("consumer-version");
 const reviewSummaryButton = requiredElement("review-summary");
@@ -134,8 +136,6 @@ function renderObservations(observations) {
 
   for (const observation of observations) {
     const card = createElement("article", "observation-card");
-    const category = createElement("p", "observation-category");
-    category.textContent = observation.identifier;
     const heading = createElement("h3");
     heading.textContent = observation.title;
     const count = createElement("p", "occurrence-count");
@@ -145,7 +145,7 @@ function renderObservations(observations) {
         : `Observed ${observation.occurrence_count} times`;
     const explanation = createElement("p", "observation-explanation");
     explanation.textContent = observation.explanation;
-    card.append(category, heading, count, explanation);
+    card.append(heading, count, explanation);
     observationsContainer.append(card);
   }
 }
@@ -153,6 +153,9 @@ function renderObservations(observations) {
 function renderCompleteness(completeness) {
   overallCompleteness.textContent = completenessStatusLabel(completeness.status);
   stagesContainer.replaceChildren();
+  coverageLimitations.replaceChildren();
+  coverageLimitations.hidden = true;
+  coverageDetails.open = false;
 
   for (const stage of completeness.stages) {
     const item = createElement("article", "stage-card");
@@ -175,6 +178,20 @@ function renderCompleteness(completeness) {
     }
 
     stagesContainer.append(item);
+
+    if (stage.status !== "complete-within-supported-scope") {
+      coverageLimitations.hidden = false;
+      const limitation = createElement("article", "coverage-limitation");
+      const limitationTitle = createElement("h4");
+      limitationTitle.textContent = `${stageLabel(stage.identifier)} was not fully examined`;
+      limitation.append(limitationTitle);
+      for (const reason of stage.reasons) {
+        const reasonText = createElement("p");
+        reasonText.textContent = reason.explanation;
+        limitation.append(reasonText);
+      }
+      coverageLimitations.append(limitation);
+    }
   }
 }
 
@@ -256,6 +273,9 @@ function clearPreviousResult() {
   results.hidden = true;
   observationsContainer.replaceChildren();
   stagesContainer.replaceChildren();
+  coverageLimitations.replaceChildren();
+  coverageLimitations.hidden = true;
+  coverageDetails.open = false;
   summaryReview.hidden = true;
   summaryText.value = "";
   copyStatus.textContent = "";
@@ -293,8 +313,8 @@ function stageStatusLabel(status) {
 
 function completenessStatusLabel(status) {
   return status === "complete-within-supported-scope"
-    ? "Complete within supported scope"
-    : "Some analysis was incomplete";
+    ? "Clue completed its supported checks."
+    : "Clue could not fully examine every supported structure in this link.";
 }
 
 function occurrenceSummary(count) {
