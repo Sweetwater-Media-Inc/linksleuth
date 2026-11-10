@@ -136,3 +136,12 @@ The system cannot verify a sender, organization, message claim, website
 content, final destination, or user answer. Context can reduce the specific
 uncertainty caused by missing answers, but cannot resolve technical ambiguity
 or incomplete URL analysis.
+
+## Milestone 6.19 presentation boundary
+
+Milestone 6.19 changes only how the existing assessment contract is presented.
+The browser places assessment and optional context side by side on desktop,
+keeps the first two questions visible, and updates guidance in place. Important
+typed limitations remain visible; structural observations are available in a
+separate collapsed disclosure. Categories, action rules, next-step selection,
+reason ordering, contract version 1, and all privacy semantics are unchanged.

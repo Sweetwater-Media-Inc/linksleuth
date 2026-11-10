@@ -210,6 +210,13 @@ strictly additive fields, so browser wire schema 2 and assessment contract 1
 remain compatible and consumer schema 1 is unchanged. Clue validates the new
 fields, but no core consumer-report shape or URL-analysis behaviour changes.
 
+Milestone 6.19 is presentation-only. It adds no adapter fields, context values,
+dependencies, or exports. Browser wire schema 2, consumer schema 1, and
+assessment contract 1 remain unchanged. The wider responsive result layout,
+always-visible initial context questions, collapsed structural-findings
+disclosure, and visible assessment limitations all consume the existing
+validated report in browser memory.
+
 See [CLUE_ASSESSMENT.md](CLUE_ASSESSMENT.md) for rules, context, privacy, and
 resource bounds, and [FUTURE_INTELLIGENCE.md](FUTURE_INTELLIGENCE.md) for
 strictly future opt-in intelligence and isolated active-investigation planning.

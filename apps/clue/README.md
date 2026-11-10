@@ -23,6 +23,14 @@ reserves **Do not open this link** for strong-warning outcomes, and provides a
 bounded list of fixed practical next steps. The category and evidence limits
 remain visible, and URL-derived versus user-reported reasons stay separate.
 
+Milestone 6.19 reorganizes results for faster comparison. At desktop widths,
+the assessment and optional context form use an approximately 55/45 two-column
+layout inside a wider, bounded results region. The first two context questions
+are immediately visible; one explicit control reveals the remaining two.
+Tablet and mobile widths stack the assessment first and context second.
+Supporting structural findings move into a collapsed native disclosure with a
+fixed observation count, while assessment limitations remain visible.
+
 ## Tool versions
 
 The checked-in lockfiles and build script currently target:
@@ -107,6 +115,8 @@ This builds production assets, runs Node contract/privacy tests, starts the
 production preview server, and runs Playwright against the real generated WASM
 in Chromium. Browser tests instrument requests and fail if analysis starts any
 request, including requests to synthetic submitted or candidate hostnames.
+Responsive assertions cover 390px mobile, 768px tablet, 1280px desktop, and
+1920px large-desktop layouts.
 
 Individual commands are available when iterating:
 

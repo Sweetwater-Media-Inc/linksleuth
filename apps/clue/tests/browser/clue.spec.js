@@ -31,6 +31,13 @@ async function analyze(page, url) {
   await page.getByRole("button", { name: "Analyze URL" }).click();
 }
 
+async function expandSupportingFindings(page) {
+  const findings = page.locator("#supporting-findings");
+  await expect(findings).not.toHaveAttribute("open", "");
+  await findings.locator("summary").click();
+  await expect(findings).toHaveAttribute("open", "");
+}
+
 test("loads the actual WASM adapter and retains accepted schema versions outside the primary header", async ({
   page,
 }) => {
@@ -51,6 +58,37 @@ test("loads the actual WASM adapter and retains accepted schema versions outside
   );
 });
 
+test("places the assessment and visible context questions side by side on desktop", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openClue(page);
+  await analyze(page, SENSITIVE_URL);
+
+  const { assessmentBox, contextBox } = await page.evaluate(() => ({
+    assessmentBox: document.querySelector("#assessment").getBoundingClientRect().toJSON(),
+    contextBox: document.querySelector(".context-panel").getBoundingClientRect().toJSON(),
+  }));
+  expect(Math.abs(assessmentBox.y - contextBox.y)).toBeLessThan(2);
+  expect(contextBox.x).toBeGreaterThan(assessmentBox.x + assessmentBox.width);
+  expect(assessmentBox.width).toBeGreaterThan(contextBox.width);
+
+  await expect(page.getByLabel("Where did the link come from?")).toBeVisible();
+  await expect(page.getByLabel("What was it supposed to be for?")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show two more optional questions" })).toBeVisible();
+  await expect(page.getByLabel("Were you expecting this contact or request?")).toBeHidden();
+
+  const primaryViewportState = await page.evaluate(() => {
+    const action = document.querySelector("#assessment-action").getBoundingClientRect();
+    const purpose = document.querySelector("#context-purpose").getBoundingClientRect();
+    return {
+      actionVisible: action.top >= 0 && action.bottom <= window.innerHeight,
+      purposeVisible: purpose.top >= 0 && purpose.bottom <= window.innerHeight,
+    };
+  });
+  expect(primaryViewportState).toEqual({ actionVisible: true, purposeVisible: true });
+});
+
 test("renders encoded destinations and performs no analysis-triggered requests", async ({
   page,
 }) => {
@@ -58,6 +96,11 @@ test("renders encoded destinations and performs no analysis-triggered requests",
   const assetRequestCount = network.requests.length;
 
   await analyze(page, SENSITIVE_URL);
+  await expect(page.locator("#supporting-findings")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#observations-summary")).toHaveText(
+    "Clue identified 1 structural observation.",
+  );
+  await expandSupportingFindings(page);
   await expect(
     page.getByRole("heading", { name: "This link contains another web address" }),
   ).toBeVisible();
@@ -92,6 +135,11 @@ test("shows the explicit non-verdict state when there are no observations", asyn
   await openClue(page);
   await analyze(page, "https://ordinary.example/products?category=books");
 
+  await expect(page.locator("#observations-summary")).toHaveText(
+    "Clue identified no supported structural observations.",
+  );
+  await expect(page.locator("#supporting-findings")).not.toHaveAttribute("open", "");
+  await expandSupportingFindings(page);
   await expect(
     page.getByText("No supported structural observations were found."),
   ).toBeVisible();
@@ -125,6 +173,10 @@ test("keeps unsupported original-path analysis separate from completed stages", 
   await expect(page.locator("#assessment-heading")).toHaveText("Unable to assess reliably");
   await expect(page.locator(".assessment-evidence-sufficiency")).toContainText(
     "incomplete or unavailable",
+  );
+  await expect(page.locator("#assessment-limitations")).toBeVisible();
+  await expect(page.locator("#assessment-limitations")).toContainText(
+    "At least one supported analysis stage was incomplete",
   );
   const limitations = page.locator("#coverage-limitations");
   await expect(limitations).toContainText("Original path was not fully examined");
@@ -197,7 +249,7 @@ test("privacy-reduced results and explicit copy workflow exclude raw URL evidenc
   }
 
   await page.getByRole("button", { name: "Copy summary" }).click();
-  await expect(page.getByRole("status")).toHaveText("Summary copied to the clipboard.");
+  await expect(page.locator("#copy-status")).toHaveText("Summary copied to the clipboard.");
   const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
   expect(clipboardText).toBe(summary);
 });
@@ -210,6 +262,10 @@ test("supports keyboard submission and accessible summary controls", async ({ pa
   );
   await input.press("Enter");
 
+  const findingsSummary = page.locator("#supporting-findings > summary");
+  await findingsSummary.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#supporting-findings")).toHaveAttribute("open", "");
   await expect(
     page.getByRole("heading", { name: "This link contains another web address" }),
   ).toBeVisible();
@@ -241,6 +297,15 @@ test("explains the motivating compound structure without disclosing its evidence
   const network = await openClue(page);
   const assetRequestCount = network.requests.length;
   await analyze(page, COMPOUND_EXAMPLE);
+  await expect(page.locator("#supporting-findings")).not.toHaveAttribute("open", "");
+  await expect(page.locator("#observations-summary")).toHaveText(
+    "Clue identified 6 structural observations.",
+  );
+  await expandSupportingFindings(page);
+  await expect(page.locator(".observation-card")).toHaveCount(6);
+  for (const card of await page.locator(".observation-card").all()) {
+    await expect(card).toBeVisible();
+  }
 
   for (const title of [
     "This link contains a web address without a stated scheme",
@@ -255,6 +320,10 @@ test("explains the motivating compound structure without disclosing its evidence
   ).toBeVisible();
   await expect(page.locator("#assessment-heading")).toHaveText("Proceed with caution");
   await expect(page.locator("#assessment-reasons")).toHaveAttribute("data-layout", "full");
+  const cautionStyle = await page.locator("#assessment").evaluate((element) => ({
+    border: getComputedStyle(element).borderLeftColor,
+    background: getComputedStyle(element).backgroundColor,
+  }));
   const preliminaryReasonsWidth = await page.locator(".assessment-reason-group").first().evaluate(
     (element) => element.getBoundingClientRect().width,
   );
@@ -277,16 +346,23 @@ test("explains the motivating compound structure without disclosing its evidence
   ]) {
     expect(resultText).not.toContain(sensitive);
   }
-  await page.getByRole("button", { name: "Answer optional questions" }).click();
+  await expect(page.getByLabel("Where did the link come from?")).toBeVisible();
+  await expect(page.getByLabel("What was it supposed to be for?")).toBeVisible();
   await page.getByLabel("Where did the link come from?").selectOption("email");
-  await page.getByRole("button", { name: "Next question" }).first().click();
-  await page.getByLabel("What was the link supposed to be for?").selectOption("document");
-  await page.getByRole("button", { name: "Next question" }).nth(1).click();
+  await page.getByLabel("What was it supposed to be for?").selectOption("document");
+  await page.getByRole("button", { name: "Show two more optional questions" }).click();
   await page
     .getByLabel("Were you expecting this contact or request?")
     .selectOption("unexpected");
   await expect(page.getByRole("heading", { name: "Do not open this link" })).toBeVisible();
   await expect(page.locator("#assessment-heading")).toHaveText("Strong warning signs");
+  const strongStyle = await page.locator("#assessment").evaluate((element) => ({
+    border: getComputedStyle(element).borderLeftColor,
+    background: getComputedStyle(element).backgroundColor,
+  }));
+  expect(strongStyle.border).not.toBe(cautionStyle.border);
+  expect(strongStyle.background).not.toBe(cautionStyle.background);
+  expect(strongStyle.border).toBe("rgb(161, 40, 40)");
   await expect(page.locator("#assessment-explanation")).toContainText(
     "warning signs consistent with phishing",
   );
@@ -327,22 +403,28 @@ test("offers optional progressive context and updates guidance without changing 
   await expect(page.locator("#assessment-status-label")).toHaveText(
     "Preliminary assessment",
   );
-  await page.getByRole("button", { name: "Answer optional questions" }).click();
-  await expect(page.getByLabel("Where did the link come from?")).toBeFocused();
+  await expect(page.getByLabel("Where did the link come from?")).toBeVisible();
+  await expect(page.getByLabel("What was it supposed to be for?")).toBeVisible();
+  await expect(page.getByLabel("Were you expecting this contact or request?")).toBeHidden();
 
-  await page.getByLabel("Where did the link come from?").selectOption("email");
+  const sourceControl = page.getByLabel("Where did the link come from?");
+  await sourceControl.scrollIntoViewIfNeeded();
+  await sourceControl.focus();
+  const scrollBeforeUpdate = await page.evaluate(() => window.scrollY);
+  await sourceControl.selectOption("email");
+  await expect(sourceControl).toBeFocused();
+  expect(Math.abs((await page.evaluate(() => window.scrollY)) - scrollBeforeUpdate)).toBeLessThan(2);
   await expect(page.getByText("Assessment with optional context")).toBeVisible();
   await expect(page.locator("#context-status")).toContainText(
     "The guidance did not change.",
   );
 
-  await page.getByRole("button", { name: "Next question" }).first().click();
-  await page.getByLabel("What was the link supposed to be for?").selectOption("document");
-  await page.getByRole("button", { name: "Next question" }).nth(1).click();
+  await page.getByLabel("What was it supposed to be for?").selectOption("document");
+  await expect(sourceControl).toHaveValue("email");
+  await page.getByRole("button", { name: "Show two more optional questions" }).click();
   await page
     .getByLabel("Were you expecting this contact or request?")
     .selectOption("unexpected");
-  await page.getByRole("button", { name: "Next question" }).nth(2).click();
   await page
     .getByLabel("What did the message or page ask you to do?")
     .selectOption("enter-account-credentials");
@@ -374,6 +456,8 @@ test("offers optional progressive context and updates guidance without changing 
     "Verify this link before opening it.",
   );
   await expect(page.getByLabel("Where did the link come from?")).toHaveValue("");
+  await expect(page.getByLabel("What was it supposed to be for?")).toHaveValue("");
+  await expect(page.getByLabel("Were you expecting this contact or request?")).toHaveValue("");
   await expect(page.locator("#observations")).toHaveText(observationsBefore);
 });
 
@@ -382,10 +466,8 @@ test("context reassessment and context editing trigger no network requests", asy
   await analyze(page, SENSITIVE_URL);
   const requestCount = network.requests.length;
 
-  await page.getByRole("button", { name: "Answer optional questions" }).click();
   await page.getByLabel("Where did the link come from?").selectOption("message");
-  await page.getByRole("button", { name: "Next question" }).first().click();
-  await page.getByLabel("What was the link supposed to be for?").selectOption("payment-or-financial-request");
+  await page.getByLabel("What was it supposed to be for?").selectOption("payment-or-financial-request");
   await page.waitForTimeout(100);
 
   expect(network.externalRequests).toEqual([]);
@@ -401,11 +483,9 @@ test("summary excludes optional context reasons until deliberate inclusion", asy
   });
   await openClue(page);
   await analyze(page, "https://ordinary.example/account");
-  await page.getByRole("button", { name: "Answer optional questions" }).click();
   await page.getByLabel("Where did the link come from?").selectOption("email");
-  await page.getByRole("button", { name: "Next question" }).first().click();
-  await page.getByLabel("What was the link supposed to be for?").selectOption("account-sign-in-or-verification");
-  await page.getByRole("button", { name: "Next question" }).nth(1).click();
+  await page.getByLabel("What was it supposed to be for?").selectOption("account-sign-in-or-verification");
+  await page.getByRole("button", { name: "Show two more optional questions" }).click();
   await page.getByLabel("Were you expecting this contact or request?").selectOption("unexpected");
 
   await page.getByRole("button", { name: "Review summary" }).click();
@@ -443,6 +523,7 @@ test("repeated analysis replaces observations and keeps result focus", async ({ 
   await expect(
     page.getByRole("heading", { name: "This link contains another web address" }),
   ).toHaveCount(0);
+  await expandSupportingFindings(page);
   await expect(
     page.getByText("No supported structural observations were found."),
   ).toBeVisible();

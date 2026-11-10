@@ -38,17 +38,16 @@ const assessmentChange = requiredElement("assessment-change");
 const assessmentReasonsHeading = requiredElement("assessment-reasons-heading");
 const assessmentReasons = requiredElement("assessment-reasons");
 const assessmentLimitations = requiredElement("assessment-limitations");
-const openContextButton = requiredElement("open-context");
-const contextQuestions = requiredElement("context-questions");
 const contextSource = requiredElement("context-source");
 const contextPurpose = requiredElement("context-purpose");
 const contextExpected = requiredElement("context-expected");
 const contextAction = requiredElement("context-action");
+const showContextMoreButton = requiredElement("show-context-more");
+const contextMore = requiredElement("context-more");
 const clearContextButton = requiredElement("clear-context");
-const closeContextButton = requiredElement("close-context");
 const contextStatus = requiredElement("context-status");
-const contextSteps = [...document.querySelectorAll(".context-step")];
-const contextNextButtons = [...document.querySelectorAll(".context-next")];
+const supportingFindings = requiredElement("supporting-findings");
+const observationsSummary = requiredElement("observations-summary");
 const reviewSummaryButton = requiredElement("review-summary");
 const summaryReview = requiredElement("summary-review");
 const summaryHeading = requiredElement("summary-heading");
@@ -67,16 +66,12 @@ form.addEventListener("submit", handleAnalysis);
 reviewSummaryButton.addEventListener("click", openSummaryReview);
 copySummaryButton.addEventListener("click", copySummary);
 closeSummaryButton.addEventListener("click", closeSummaryReview);
-openContextButton.addEventListener("click", openContextQuestions);
+showContextMoreButton.addEventListener("click", toggleAdditionalContext);
 clearContextButton.addEventListener("click", clearContext);
-closeContextButton.addEventListener("click", closeContextQuestions);
 includeContextSummary.addEventListener("change", refreshSummary);
 for (const control of [contextSource, contextPurpose, contextExpected, contextAction]) {
   control.addEventListener("change", updateAssessmentFromContext);
 }
-contextNextButtons.forEach((button, index) => {
-  button.addEventListener("click", () => revealContextStep(index + 1));
-});
 
 async function initializeAnalyzer() {
   try {
@@ -156,7 +151,8 @@ function renderReport(response) {
     count === 1
       ? "Analysis complete. One structural observation was found."
       : `Analysis complete. ${count} structural observations were found.`;
-  resultsHeading.focus();
+  resultsHeading.focus({ preventScroll: true });
+  resultsHeading.scrollIntoView({ block: "start", behavior: "instant" });
 }
 
 function renderAssessment(assessment, hasContext) {
@@ -249,6 +245,8 @@ function contextChangeExplanation(assessment) {
 
 function renderObservations(observations) {
   observationsContainer.replaceChildren();
+  supportingFindings.open = false;
+  observationsSummary.textContent = observationCountSummary(observations.length);
 
   if (observations.length === 0) {
     const emptyState = createElement("div", "empty-state");
@@ -276,6 +274,16 @@ function renderObservations(observations) {
     card.append(heading, count, explanation);
     observationsContainer.append(card);
   }
+}
+
+function observationCountSummary(count) {
+  if (count === 0) {
+    return "Clue identified no supported structural observations.";
+  }
+  if (count === 1) {
+    return "Clue identified 1 structural observation.";
+  }
+  return `Clue identified ${count} structural observations.`;
 }
 
 function renderCompleteness(completeness) {
@@ -433,25 +441,13 @@ function buildSummary(response, includeContextReasons) {
   return lines.join("\n");
 }
 
-function openContextQuestions() {
-  contextQuestions.hidden = false;
-  openContextButton.setAttribute("aria-expanded", "true");
-  contextSource.focus();
-}
-
-function closeContextQuestions() {
-  contextQuestions.hidden = true;
-  openContextButton.setAttribute("aria-expanded", "false");
-  openContextButton.focus();
-}
-
-function revealContextStep(index) {
-  const step = contextSteps[index];
-  if (!step) {
-    return;
-  }
-  step.hidden = false;
-  step.querySelector("select")?.focus();
+function toggleAdditionalContext() {
+  const shouldShow = contextMore.hidden;
+  contextMore.hidden = !shouldShow;
+  showContextMoreButton.setAttribute("aria-expanded", String(shouldShow));
+  showContextMoreButton.textContent = shouldShow
+    ? "Hide two additional questions"
+    : "Show two more optional questions";
 }
 
 async function updateAssessmentFromContext() {
@@ -501,9 +497,6 @@ function clearContext() {
   for (const control of [contextSource, contextPurpose, contextExpected, contextAction]) {
     control.value = "";
   }
-  contextSteps.forEach((step, index) => {
-    step.hidden = index !== 0;
-  });
   if (preliminaryReport !== null) {
     currentReport = preliminaryReport;
     renderAssessment(preliminaryReport.report.assessment, false);
@@ -529,15 +522,15 @@ function clearPreviousResult() {
   copyStatus.textContent = "";
   reviewSummaryButton.setAttribute("aria-expanded", "false");
   includeContextSummary.checked = false;
-  contextQuestions.hidden = true;
-  openContextButton.setAttribute("aria-expanded", "false");
+  contextMore.hidden = true;
+  showContextMoreButton.setAttribute("aria-expanded", "false");
+  showContextMoreButton.textContent = "Show two more optional questions";
   contextStatus.textContent = "";
   for (const control of [contextSource, contextPurpose, contextExpected, contextAction]) {
     control.value = "";
   }
-  contextSteps.forEach((step, index) => {
-    step.hidden = index !== 0;
-  });
+  supportingFindings.open = false;
+  observationsSummary.textContent = "";
 }
 
 function showError(message) {

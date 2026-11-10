@@ -110,111 +110,115 @@
           </div>
         </div>
 
-        <section id="assessment" class="assessment" aria-labelledby="assessment-action">
-          <p id="assessment-status-label" class="step-label">Preliminary assessment</p>
-          <h3 id="assessment-action"></h3>
-          <p class="assessment-category">
-            <span>Assessment category:</span>
-            <strong id="assessment-heading"></strong>
-          </p>
-          <p id="assessment-explanation" class="assessment-explanation"></p>
-          <p class="assessment-evidence-sufficiency">
-            <strong>What the evidence supports:</strong>
-            <span id="assessment-category-explanation"></span>
-          </p>
-          <section class="assessment-next-steps" aria-labelledby="next-steps-heading">
-            <h4 id="next-steps-heading">What you should do</h4>
-            <ul id="assessment-next-steps"></ul>
+        <div class="results-primary-grid">
+          <section id="assessment" class="assessment" aria-labelledby="assessment-action">
+            <p id="assessment-status-label" class="step-label">Preliminary assessment</p>
+            <h3 id="assessment-action"></h3>
+            <p class="assessment-category">
+              <span>Assessment category:</span>
+              <strong id="assessment-heading"></strong>
+            </p>
+            <p id="assessment-explanation" class="assessment-explanation"></p>
+            <p class="assessment-evidence-sufficiency">
+              <strong>What the evidence supports:</strong>
+              <span id="assessment-category-explanation"></span>
+            </p>
+            <section class="assessment-next-steps" aria-labelledby="next-steps-heading">
+              <h4 id="next-steps-heading">What you should do</h4>
+              <ul id="assessment-next-steps"></ul>
+            </section>
+            <p id="assessment-change" class="assessment-change" hidden></p>
+            <section class="assessment-reason-section" aria-labelledby="assessment-reasons-heading">
+              <h4 id="assessment-reasons-heading">Why Clue is concerned</h4>
+              <div id="assessment-reasons" class="assessment-reasons"></div>
+            </section>
+            <section class="assessment-limitations" aria-labelledby="assessment-limitations-heading">
+              <h4 id="assessment-limitations-heading">Limits of this assessment</h4>
+              <ul id="assessment-limitations"></ul>
+            </section>
           </section>
-          <p id="assessment-change" class="assessment-change" hidden></p>
-          <section class="assessment-reason-section" aria-labelledby="assessment-reasons-heading">
-            <h4 id="assessment-reasons-heading">Why Clue is concerned</h4>
-            <div id="assessment-reasons" class="assessment-reasons"></div>
-          </section>
-          <details class="assessment-limitations">
-            <summary>Limits of this assessment</summary>
-            <ul id="assessment-limitations"></ul>
-          </details>
-        </section>
 
-        <section class="context-panel" aria-labelledby="context-heading">
-          <div class="context-intro">
-            <div>
+          <section class="context-panel" aria-labelledby="context-heading">
+            <div class="context-intro">
+              <p class="step-label">Optional context</p>
               <h3 id="context-heading">Help Clue understand this link</h3>
-              <p>Optional answers can refine the recommendation. They stay on this device.</p>
+              <p>Answer as much as you know. Each answer stays on this device and can refine the recommendation.</p>
             </div>
-            <button
-              id="open-context"
-              class="secondary-button"
-              type="button"
-              aria-controls="context-questions"
-              aria-expanded="false"
-            >Answer optional questions</button>
-          </div>
-          <div id="context-questions" class="context-questions" hidden>
-            <div class="context-step" data-context-step="0">
-              <label for="context-source">Where did the link come from?</label>
-              <select id="context-source">
-                <option value="">Not answered</option>
-                <option value="email">Email</option>
-                <option value="message">SMS or messaging</option>
-                <option value="social-media">Social media</option>
-                <option value="website-or-search">Website or search result</option>
-                <option value="qr-code">QR code</option>
-                <option value="other-or-unknown">Other or unknown</option>
-              </select>
-              <button class="text-button context-next" type="button">Next question</button>
+            <div id="context-questions" class="context-questions">
+              <div class="context-step" data-context-step="0">
+                <label for="context-source">Where did the link come from?</label>
+                <select id="context-source">
+                  <option value="">Not answered</option>
+                  <option value="email">Email</option>
+                  <option value="message">SMS or messaging</option>
+                  <option value="social-media">Social media</option>
+                  <option value="website-or-search">Website or search result</option>
+                  <option value="qr-code">QR code</option>
+                  <option value="other-or-unknown">Other or unknown</option>
+                </select>
+              </div>
+              <div class="context-step" data-context-step="1">
+                <label for="context-purpose">What was it supposed to be for?</label>
+                <select id="context-purpose">
+                  <option value="">Not answered</option>
+                  <option value="document">Sign or view a document</option>
+                  <option value="account-sign-in-or-verification">Sign in or verify an account</option>
+                  <option value="delivery-or-shipping">Delivery or shipping</option>
+                  <option value="payment-or-financial-request">Payment or financial request</option>
+                  <option value="ordinary-content">View ordinary content</option>
+                  <option value="software-download-or-install">Download or install software</option>
+                  <option value="other-or-unknown">Other or unknown</option>
+                </select>
+              </div>
+              <button
+                id="show-context-more"
+                class="text-button context-more-toggle"
+                type="button"
+                aria-controls="context-more"
+                aria-expanded="false"
+              >Show two more optional questions</button>
+              <div id="context-more" class="context-more" hidden>
+                <div class="context-step" data-context-step="2">
+                  <label for="context-expected">Were you expecting this contact or request?</label>
+                  <select id="context-expected">
+                    <option value="">Not answered</option>
+                    <option value="expected">Expected</option>
+                    <option value="unexpected">Unexpected</option>
+                    <option value="unsure">Unsure</option>
+                  </select>
+                </div>
+                <div class="context-step" data-context-step="3">
+                  <label for="context-action">What did the message or page ask you to do?</label>
+                  <select id="context-action">
+                    <option value="">Not answered</option>
+                    <option value="view-content">View content</option>
+                    <option value="enter-account-credentials">Enter account credentials</option>
+                    <option value="provide-personal-information">Provide personal information</option>
+                    <option value="make-payment">Make a payment</option>
+                    <option value="download-or-install-software">Download or install software</option>
+                    <option value="contact-someone">Contact someone</option>
+                    <option value="other-or-unknown">Other or unknown</option>
+                  </select>
+                </div>
+              </div>
+              <div class="context-controls">
+                <button id="clear-context" class="text-button" type="button">Clear answers</button>
+              </div>
+              <p id="context-status" class="context-status" role="status" aria-live="polite"></p>
             </div>
-            <div class="context-step" data-context-step="1" hidden>
-              <label for="context-purpose">What was the link supposed to be for?</label>
-              <select id="context-purpose">
-                <option value="">Not answered</option>
-                <option value="document">Sign or view a document</option>
-                <option value="account-sign-in-or-verification">Sign in or verify an account</option>
-                <option value="delivery-or-shipping">Delivery or shipping</option>
-                <option value="payment-or-financial-request">Payment or financial request</option>
-                <option value="ordinary-content">View ordinary content</option>
-                <option value="software-download-or-install">Download or install software</option>
-                <option value="other-or-unknown">Other or unknown</option>
-              </select>
-              <button class="text-button context-next" type="button">Next question</button>
-            </div>
-            <div class="context-step" data-context-step="2" hidden>
-              <label for="context-expected">Were you expecting this contact or request?</label>
-              <select id="context-expected">
-                <option value="">Not answered</option>
-                <option value="expected">Expected</option>
-                <option value="unexpected">Unexpected</option>
-                <option value="unsure">Unsure</option>
-              </select>
-              <button class="text-button context-next" type="button">Next question</button>
-            </div>
-            <div class="context-step" data-context-step="3" hidden>
-              <label for="context-action">What did the message or page ask you to do?</label>
-              <select id="context-action">
-                <option value="">Not answered</option>
-                <option value="view-content">View content</option>
-                <option value="enter-account-credentials">Enter account credentials</option>
-                <option value="provide-personal-information">Provide personal information</option>
-                <option value="make-payment">Make a payment</option>
-                <option value="download-or-install-software">Download or install software</option>
-                <option value="contact-someone">Contact someone</option>
-                <option value="other-or-unknown">Other or unknown</option>
-              </select>
-            </div>
-            <div class="context-controls">
-              <button id="clear-context" class="text-button" type="button">Clear answers</button>
-              <button id="close-context" class="text-button" type="button">Return to results</button>
-            </div>
-            <p id="context-status" class="context-status" role="status" aria-live="polite"></p>
-          </div>
-        </section>
-
-        <div class="supporting-heading">
-          <p class="step-label">Supporting URL observations</p>
-          <h3>What influenced the URL analysis</h3>
+          </section>
         </div>
-        <div id="observations" class="observations"></div>
+
+        <details id="supporting-findings" class="supporting-findings">
+          <summary>
+            <span class="supporting-findings-copy">
+              <span class="supporting-findings-title">Supporting URL findings</span>
+              <span id="observations-summary" class="supporting-findings-summary"></span>
+            </span>
+            <span class="supporting-findings-toggle" aria-hidden="true"></span>
+          </summary>
+          <div id="observations" class="observations"></div>
+        </details>
 
         <section class="completeness" aria-labelledby="completeness-heading">
           <div class="completeness-intro">

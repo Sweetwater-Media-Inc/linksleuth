@@ -163,6 +163,29 @@ context contributes reasons, the two sources use balanced columns when space
 permits and stack on mobile. The UI states whether context changed the
 category, only the recommended action, only practical guidance, or neither.
 
+## Milestone 6.19 results layout
+
+The result region is wider than the introductory input region but remains
+bounded for readable line lengths. Above 60rem, the primary result uses an
+approximately 55/45 assessment-and-context grid. The assessment remains first
+in DOM and keyboard order. At 60rem and below, the same content stacks with the
+assessment first and context second.
+
+The optional context panel is always present after analysis. Source and purpose
+questions are immediately visible, and one clearly named control reveals the
+expected-contact and requested-action questions together. Changing an answer
+updates the existing assessment in place without moving focus, replacing the
+form, persisting data, or altering URL observations. Clearing answers restores
+the preliminary assessment.
+
+Assessment limitations remain visible in the primary card. Supporting URL
+observations move to a collapsed native **Supporting URL findings** disclosure
+that states the fixed observation count before expansion. The detailed
+four-stage coverage view remains a separate disclosure below it. Strong,
+caution, incomplete, and neutral outcomes use distinct restrained accents in
+addition to explicit category text; no state is presented as a green safety
+approval.
+
 ### Expandable technical details
 
 - Hidden by default.
