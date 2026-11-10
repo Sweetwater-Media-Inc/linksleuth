@@ -32,6 +32,10 @@ LinkSleuth is a Rust 2024 workspace for **passive** HTTP/HTTPS URL inspection. T
 10. The WASM adapter runs the passive core, consumer API and assessment rules locally; `analyzeUrl(input)` provides an immediate result and `assessUrl(input, contextJson)` reevaluates using up to 1 KiB of bounded context without hidden retained analysis state. The narrow browser envelope (`BROWSER_WIRE_SCHEMA_VERSION = 2`) omits hostname and detailed evidence, returns fixed private errors and exposes the assessment without changing URL observations. Local Chromium instrumentation found zero requests caused by analysis/reassessment; this is not a deployment guarantee. Browser packaging and actual Chromium execution are now locally verified, with network instrumentation confirming zero analysis-triggered requests in the tested context.
 11. The independent native example uses only public consumer accessors and options, not internal evidence-field layouts. The existing CLI continues using its detailed and shareable presentation, with opt-in hostname disclosure via `--shareable --include-hostname`.
 
+### Clue results presentation (Milestone 6.19)
+
+The browser app presents an action-first assessment and optional context inputs in a responsive desktop grid (approximately 55/45), with a bounded 88rem results container. At 60rem and below, panels stack in DOM reading order. The first two questions appear immediately and the remaining two are available on demand. Supporting URL observations are collapsed by default in a native disclosure, but important assessment limitations remain visible above it. No core Rust analysis, assessment rules, WASM interfaces or schema versions changed in this layout-only milestone. Reported local browser checks cover 390/768/1280/1920px viewports, keyboard/focus and network-request boundaries; manual assistive-technology and cross-browser verification are still open.
+
 ## Important separations
 
 - **Parsing versus normalization:** parser-normalized paths must not replace original URL evidence.
