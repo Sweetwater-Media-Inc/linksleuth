@@ -156,7 +156,7 @@ impl AssessmentCategory {
     pub const fn explanation(self) -> &'static str {
         match self {
             Self::StrongWarningSigns => {
-                "Several meaningfully different indicators support avoiding this link until the request is independently verified. This is not a confirmed scam determination."
+                "Several meaningfully different indicators support avoiding this link until the request is independently verified. These warning signs are consistent with phishing, but Clue has not confirmed malicious intent."
             }
             Self::ProceedWithCaution => {
                 "One or more structural or contextual concerns warrant independent verification before relying on this link."
@@ -174,6 +174,7 @@ impl AssessmentCategory {
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecommendedAction {
+    DoNotOpenLink,
     ContinueCarefully,
     VerifyIndependently,
     VerifySenderIndependently,
@@ -185,6 +186,7 @@ pub enum RecommendedAction {
 impl RecommendedAction {
     pub const fn identifier(self) -> &'static str {
         match self {
+            Self::DoNotOpenLink => "do-not-open-link",
             Self::ContinueCarefully => "continue-carefully",
             Self::VerifyIndependently => "verify-independently",
             Self::VerifySenderIndependently => "verify-sender-independently",
@@ -196,19 +198,113 @@ impl RecommendedAction {
 
     pub const fn title(self) -> &'static str {
         match self {
-            Self::ContinueCarefully => "Continue carefully and confirm the request makes sense.",
-            Self::VerifyIndependently => "Verify the request through a separate trusted channel.",
-            Self::VerifySenderIndependently => {
-                "Verify the sender independently before opening this link."
+            Self::DoNotOpenLink => "Do not open this link",
+            Self::ContinueCarefully => "No obvious structural warning signs found.",
+            Self::VerifyIndependently
+            | Self::VerifySenderIndependently
+            | Self::UseKnownWebsiteInstead => "Verify this link before opening it.",
+            Self::AvoidSensitiveActionUntilVerified => {
+                "Do not continue until this request is verified."
             }
-            Self::UseKnownWebsiteInstead => {
-                "Use a known website or application instead of this link."
+            Self::SeekAdditionalInformation => "Clue cannot reliably assess this link.",
+        }
+    }
+
+    pub const fn explanation(self) -> &'static str {
+        match self {
+            Self::DoNotOpenLink => {
+                "This request has several warning signs consistent with phishing. Avoid the link until you independently verify the request."
+            }
+            Self::ContinueCarefully => {
+                "Clue did not find an obvious warning sign in the supported URL structures. This is not evidence that the link is safe or trustworthy."
+            }
+            Self::VerifyIndependently
+            | Self::VerifySenderIndependently
+            | Self::UseKnownWebsiteInstead => {
+                "Clue found a reason to pause. Verify the request through a separate trusted source before relying on this link."
             }
             Self::AvoidSensitiveActionUntilVerified => {
-                "Do not enter sensitive information or continue until independently verified."
+                "The available evidence does not justify continuing with a sensitive request until it is independently verified."
             }
             Self::SeekAdditionalInformation => {
-                "Seek additional information before deciding whether to use this link."
+                "Clue could not reliably examine part of this link. Do not assume that missing findings mean it is safe."
+            }
+        }
+    }
+}
+
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecommendedNextStep {
+    AvoidOpeningLink,
+    VerifyRequestIndependently,
+    VerifySenderThroughTrustedChannel,
+    VerifyDocumentRequestThroughTrustedChannel,
+    UseKnownWebsiteOrApp,
+    AvoidReplyingToEstablishTrust,
+    AvoidCredentialsThroughLink,
+    AvoidPaymentThroughLink,
+    AvoidPersonalInformationThroughLink,
+    AvoidSoftwareInstallThroughLink,
+    ConfirmRequestMakesSense,
+    TreatIncompleteAnalysisWithCaution,
+}
+
+impl RecommendedNextStep {
+    pub const fn identifier(self) -> &'static str {
+        match self {
+            Self::AvoidOpeningLink => "avoid-opening-link",
+            Self::VerifyRequestIndependently => "verify-request-independently",
+            Self::VerifySenderThroughTrustedChannel => "verify-sender-through-trusted-channel",
+            Self::VerifyDocumentRequestThroughTrustedChannel => {
+                "verify-document-request-through-trusted-channel"
+            }
+            Self::UseKnownWebsiteOrApp => "use-known-website-or-app",
+            Self::AvoidReplyingToEstablishTrust => "avoid-replying-to-establish-trust",
+            Self::AvoidCredentialsThroughLink => "avoid-credentials-through-link",
+            Self::AvoidPaymentThroughLink => "avoid-payment-through-link",
+            Self::AvoidPersonalInformationThroughLink => "avoid-personal-information-through-link",
+            Self::AvoidSoftwareInstallThroughLink => "avoid-software-install-through-link",
+            Self::ConfirmRequestMakesSense => "confirm-request-makes-sense",
+            Self::TreatIncompleteAnalysisWithCaution => "treat-incomplete-analysis-with-caution",
+        }
+    }
+
+    pub const fn explanation(self) -> &'static str {
+        match self {
+            Self::AvoidOpeningLink => "Do not open this link.",
+            Self::VerifyRequestIndependently => {
+                "Verify the request using a source or contact method you already trust."
+            }
+            Self::VerifySenderThroughTrustedChannel => {
+                "Contact the supposed sender using contact information you already trust."
+            }
+            Self::VerifyDocumentRequestThroughTrustedChannel => {
+                "Contact the supposed sender through a trusted channel before opening or signing anything."
+            }
+            Self::UseKnownWebsiteOrApp => {
+                "Open the service's known website or app yourself instead of using this link."
+            }
+            Self::AvoidReplyingToEstablishTrust => {
+                "Do not rely on a reply to the same message to establish that the request is genuine."
+            }
+            Self::AvoidCredentialsThroughLink => {
+                "Do not enter your password through this link. Open the service's website or app yourself."
+            }
+            Self::AvoidPaymentThroughLink => {
+                "Do not provide payment information through this link until the request is independently verified."
+            }
+            Self::AvoidPersonalInformationThroughLink => {
+                "Do not provide personal information through this link until the request is independently verified."
+            }
+            Self::AvoidSoftwareInstallThroughLink => {
+                "Do not download or install software through this link until the request is independently verified."
+            }
+            Self::ConfirmRequestMakesSense => {
+                "Confirm that the request and destination make sense before continuing."
+            }
+            Self::TreatIncompleteAnalysisWithCaution => {
+                "Clue could not reliably examine part of this link. Verify the request independently rather than assuming the absence of findings means it is safe."
             }
         }
     }
@@ -238,6 +334,7 @@ pub enum AssessmentReasonKind {
     AmbiguousDestinationInterpretation,
     AnalysisIncomplete,
     UnexpectedContact,
+    UnexpectedDocumentRequest,
     UncertainContact,
     SensitiveClaimedPurpose,
     SensitiveRequestedAction,
@@ -251,6 +348,7 @@ impl AssessmentReasonKind {
             Self::AmbiguousDestinationInterpretation => "url.destination-interpretation-ambiguous",
             Self::AnalysisIncomplete => "url.analysis-incomplete",
             Self::UnexpectedContact => "context.contact-unexpected",
+            Self::UnexpectedDocumentRequest => "context.document-request-unexpected",
             Self::UncertainContact => "context.contact-uncertain",
             Self::SensitiveClaimedPurpose => "context.sensitive-purpose",
             Self::SensitiveRequestedAction => "context.sensitive-action-requested",
@@ -273,6 +371,9 @@ impl AssessmentReasonKind {
             }
             Self::UnexpectedContact => {
                 "You reported that the contact or request was unexpected. This is user-provided context, not independently verified evidence."
+            }
+            Self::UnexpectedDocumentRequest => {
+                "You reported receiving an unexpected request to sign or view a document. Clue has not verified who sent it."
             }
             Self::UncertainContact => {
                 "You reported being unsure whether the contact was expected. Independent verification can reduce that uncertainty."
@@ -332,6 +433,7 @@ pub struct LinkAssessment {
     contract_version: u32,
     category: AssessmentCategory,
     recommended_action: RecommendedAction,
+    recommended_next_steps: Vec<RecommendedNextStep>,
     reasons: Vec<AssessmentReason>,
     limitations: Vec<AssessmentLimitation>,
     context_changed_recommendation: bool,
@@ -348,6 +450,10 @@ impl LinkAssessment {
 
     pub const fn recommended_action(&self) -> RecommendedAction {
         self.recommended_action
+    }
+
+    pub fn recommended_next_steps(&self) -> &[RecommendedNextStep] {
+        &self.recommended_next_steps
     }
 
     pub fn reasons(&self) -> &[AssessmentReason] {
@@ -370,6 +476,14 @@ impl fmt::Debug for LinkAssessment {
             .field("contract_version", &self.contract_version)
             .field("category", &self.category)
             .field("recommended_action", &self.recommended_action)
+            .field(
+                "recommended_next_step_identifiers",
+                &self
+                    .recommended_next_steps
+                    .iter()
+                    .map(|step| step.identifier())
+                    .collect::<Vec<_>>(),
+            )
             .field(
                 "reason_identifiers",
                 &self
@@ -408,7 +522,8 @@ pub fn assess_link(report: &ConsumerReport, context: &AssessmentContext) -> Link
     let mut assessment = evaluate(&families, context);
     assessment.context_changed_recommendation = !context.is_empty()
         && (assessment.category != preliminary.category
-            || assessment.recommended_action != preliminary.recommended_action);
+            || assessment.recommended_action != preliminary.recommended_action
+            || assessment.recommended_next_steps != preliminary.recommended_next_steps);
     assessment
 }
 
@@ -506,14 +621,8 @@ fn evaluate(families: &EvidenceFamilies, context: &AssessmentContext) -> LinkAss
     };
 
     let recommended_action = match category {
-        AssessmentCategory::UnableToAssessReliably if sensitive_action => {
-            RecommendedAction::AvoidSensitiveActionUntilVerified
-        }
         AssessmentCategory::UnableToAssessReliably => RecommendedAction::SeekAdditionalInformation,
-        AssessmentCategory::StrongWarningSigns if sensitive_action => {
-            RecommendedAction::AvoidSensitiveActionUntilVerified
-        }
-        AssessmentCategory::StrongWarningSigns => RecommendedAction::VerifySenderIndependently,
+        AssessmentCategory::StrongWarningSigns => RecommendedAction::DoNotOpenLink,
         AssessmentCategory::ProceedWithCaution if sensitive_action => {
             RecommendedAction::AvoidSensitiveActionUntilVerified
         }
@@ -526,6 +635,8 @@ fn evaluate(families: &EvidenceFamilies, context: &AssessmentContext) -> LinkAss
         AssessmentCategory::ProceedWithCaution => RecommendedAction::VerifyIndependently,
         AssessmentCategory::NoClearStructuralWarningSigns => RecommendedAction::ContinueCarefully,
     };
+
+    let recommended_next_steps = recommended_next_steps(families, context, category);
 
     let mut reasons = Vec::new();
     if families.destination_transparency {
@@ -552,7 +663,12 @@ fn evaluate(families: &EvidenceFamilies, context: &AssessmentContext) -> LinkAss
             AssessmentReasonSource::UrlAnalysis,
         ));
     }
-    if unexpected {
+    if unexpected && context.claimed_purpose == Some(ClaimedPurpose::Document) {
+        reasons.push(reason(
+            AssessmentReasonKind::UnexpectedDocumentRequest,
+            AssessmentReasonSource::UserContext,
+        ));
+    } else if unexpected {
         reasons.push(reason(
             AssessmentReasonKind::UnexpectedContact,
             AssessmentReasonSource::UserContext,
@@ -608,10 +724,75 @@ fn evaluate(families: &EvidenceFamilies, context: &AssessmentContext) -> LinkAss
         contract_version: ASSESSMENT_CONTRACT_VERSION,
         category,
         recommended_action,
+        recommended_next_steps,
         reasons,
         limitations,
         context_changed_recommendation: false,
     }
+}
+
+fn recommended_next_steps(
+    families: &EvidenceFamilies,
+    context: &AssessmentContext,
+    category: AssessmentCategory,
+) -> Vec<RecommendedNextStep> {
+    let mut steps = Vec::with_capacity(3);
+
+    if category == AssessmentCategory::StrongWarningSigns {
+        steps.push(RecommendedNextStep::AvoidOpeningLink);
+    }
+
+    if families.analysis_incomplete {
+        steps.push(RecommendedNextStep::TreatIncompleteAnalysisWithCaution);
+    }
+
+    match context.requested_action {
+        Some(RequestedAction::EnterAccountCredentials) => {
+            steps.push(RecommendedNextStep::AvoidCredentialsThroughLink);
+        }
+        Some(RequestedAction::ProvidePersonalInformation) => {
+            steps.push(RecommendedNextStep::AvoidPersonalInformationThroughLink);
+        }
+        Some(RequestedAction::MakePayment) => {
+            steps.push(RecommendedNextStep::AvoidPaymentThroughLink);
+        }
+        Some(RequestedAction::DownloadOrInstallSoftware) => {
+            steps.push(RecommendedNextStep::AvoidSoftwareInstallThroughLink);
+        }
+        _ => {}
+    }
+
+    if steps.len() < 3 {
+        let verification_step = if context.expected_contact == Some(ExpectedContact::Unexpected)
+            && context.claimed_purpose == Some(ClaimedPurpose::Document)
+        {
+            RecommendedNextStep::VerifyDocumentRequestThroughTrustedChannel
+        } else if context.expected_contact == Some(ExpectedContact::Unexpected) {
+            RecommendedNextStep::VerifySenderThroughTrustedChannel
+        } else if families.destination_transparency {
+            RecommendedNextStep::UseKnownWebsiteOrApp
+        } else if category == AssessmentCategory::NoClearStructuralWarningSigns {
+            RecommendedNextStep::ConfirmRequestMakesSense
+        } else {
+            RecommendedNextStep::VerifyRequestIndependently
+        };
+        if !steps.contains(&verification_step) {
+            steps.push(verification_step);
+        }
+    }
+
+    if category == AssessmentCategory::StrongWarningSigns
+        && context.expected_contact == Some(ExpectedContact::Unexpected)
+        && matches!(
+            context.source,
+            Some(LinkSource::Email | LinkSource::Message)
+        )
+        && steps.len() < 3
+    {
+        steps.push(RecommendedNextStep::AvoidReplyingToEstablishTrust);
+    }
+
+    steps
 }
 
 const fn reason(kind: AssessmentReasonKind, source: AssessmentReasonSource) -> AssessmentReason {

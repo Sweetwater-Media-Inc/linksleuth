@@ -144,16 +144,24 @@ the outer `hostname//path` spelling explicitly ambiguous.
 
 ## Milestone 6.18 assessment experience
 
-The result order is assessment, recommended action, fixed reasons, optional
-context questions, supporting observations, analysis coverage, and summary
-review. Categories remain qualified and never use green safe styling, threat
-scores, or confirmed malicious/legitimate language.
+The result order is a prominent recommended-action headline, assessment
+category, explanation and evidence sufficiency, one to three practical next
+steps, fixed reasons, optional context questions, supporting observations,
+analysis coverage, and summary review. Strong warnings say **Do not open this
+link**; ordinary and incomplete results remain visibly qualified. Categories
+never use green safe styling, threat scores, or confirmed
+malicious/legitimate language.
 
 Context questions use finite native controls for source, claimed purpose,
 expected contact, and requested action. They can be answered partially,
 revised, cleared, or skipped. Reassessment reruns locally and does not mutate
 the underlying observations. Context-derived summary reasons require a separate
 explicit checkbox during review.
+
+URL-derived reasons use the full card width before context is supplied. Once
+context contributes reasons, the two sources use balanced columns when space
+permits and stack on mobile. The UI states whether context changed the
+category, only the recommended action, only practical guidance, or neither.
 
 ### Expandable technical details
 

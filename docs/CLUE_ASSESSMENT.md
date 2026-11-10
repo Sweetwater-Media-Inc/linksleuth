@@ -16,11 +16,13 @@ verification, reputation lookup, or statistical confidence estimate.
 Assessment contract version 1 exposes:
 
 - One stable category identifier, fixed title, and fixed explanation.
-- One stable recommended-action identifier and fixed actionable title.
+- One stable recommended-action identifier, fixed headline, and fixed
+  explanation.
+- One to three typed, fixed-text practical next steps in deterministic order.
 - Supporting reasons separated into URL-analysis and user-context sources.
 - Fixed limitations.
-- Whether context changed the category or recommended action relative to the
-  empty-context preliminary assessment.
+- Whether context changed the category, recommended action, or practical steps
+  relative to the empty-context preliminary assessment.
 
 Categories are:
 
@@ -29,8 +31,12 @@ Categories are:
 - `no-clear-structural-warning-signs`
 - `unable-to-assess-reliably`
 
-No category means confirmed scam, confirmed legitimacy, guaranteed safety, or
-a verified redirect.
+`strong-warning-signs` uses the direct recommended-action headline **Do not
+open this link**. That is precautionary guidance, not a claim of confirmed
+phishing. The other primary headlines are **Verify this link before opening
+it**, **No obvious structural warning signs found**, and **Clue cannot reliably
+assess this link**. No category means confirmed scam, confirmed legitimacy,
+guaranteed safety, or a verified redirect.
 
 ## Evidence families and deterministic rules
 
@@ -56,6 +62,20 @@ single URL concern, uncertainty, unexpected contact, sensitive purpose, or
 sensitive requested action produces qualified caution. An ordinary URL with no
 such reasons receives `no-clear-structural-warning-signs` plus an explicit
 non-safety limitation.
+
+The synthetic motivating case combines an embedded candidate, compound
+encoded structure, unresolved hostname-first ambiguity, and an unexpected
+document-signing context. That combination produces `strong-warning-signs`,
+`do-not-open-link`, and fixed steps to avoid opening, contact the supposed
+sender through a previously trusted channel, and avoid relying on a reply to
+the same message. The rule does not assert that the message came from its
+claimed sender, that navigation will redirect, or that content is malicious.
+
+Next steps are selected from typed identifiers. Credential, payment, personal
+information, software-installation, unexpected document, known-site, trusted
+sender, and incomplete-analysis guidance are tailored only when the typed
+context or URL evidence supports them. Ordering is deterministic and the
+collection is capped at three entries.
 
 Context may change the recommended action without changing the category. For
 example, an embedded candidate initially recommends using a known website; a
@@ -91,12 +111,16 @@ Browser wire schema 2 requires the assessment object and supports the
 `assessUrl(input, contextJson)` local export. Consumer schema remains 1 and the
 assessment contract is independently versioned at 1. Context JSON is limited
 to 1 KiB, rejects unknown fields and enum values, and contains no free text.
+The decisive headline, explanation, and typed next-step fields are additive to
+wire schema 2 and assessment contract 1, so neither version advances. Existing
+consumers that ignore unknown JSON fields remain compatible; Clue's validator
+requires them for this application build.
 
-The normal summary includes assessment category, action, URL-derived reasons,
-limitations, observations, and completeness. Context-derived reasons are
-excluded unless the user explicitly checks the inclusion control during
-summary review. The original URL, hostnames, decoded evidence, and raw context
-are never included.
+The normal summary includes the recommendation headline and explanation,
+assessment category, practical next steps, URL-derived reasons, limitations,
+observations, and completeness. Context-derived reasons are excluded unless
+the user explicitly checks the inclusion control during summary review. The
+original URL, hostnames, decoded evidence, and raw context are never included.
 
 ## Bounds and limitations
 
@@ -104,7 +128,7 @@ are never included.
 - Context JSON maximum: 1 KiB.
 - Four URL evidence families and four derived context predicates.
 - One non-recursive rule evaluation with fixed-size reason and limitation
-  collections.
+  collections and at most three recommended next steps.
 - No network, filesystem, storage, telemetry, model inference, reputation
   service, domain-brand mapping, or active navigation.
 

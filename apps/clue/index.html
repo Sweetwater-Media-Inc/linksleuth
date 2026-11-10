@@ -110,16 +110,27 @@
           </div>
         </div>
 
-        <section id="assessment" class="assessment" aria-labelledby="assessment-heading">
+        <section id="assessment" class="assessment" aria-labelledby="assessment-action">
           <p id="assessment-status-label" class="step-label">Preliminary assessment</p>
-          <h3 id="assessment-heading"></h3>
-          <div class="assessment-action">
-            <p class="assessment-action-label">Recommended action</p>
-            <p id="assessment-action"></p>
-          </div>
+          <h3 id="assessment-action"></h3>
+          <p class="assessment-category">
+            <span>Assessment category:</span>
+            <strong id="assessment-heading"></strong>
+          </p>
           <p id="assessment-explanation" class="assessment-explanation"></p>
+          <p class="assessment-evidence-sufficiency">
+            <strong>What the evidence supports:</strong>
+            <span id="assessment-category-explanation"></span>
+          </p>
+          <section class="assessment-next-steps" aria-labelledby="next-steps-heading">
+            <h4 id="next-steps-heading">What you should do</h4>
+            <ul id="assessment-next-steps"></ul>
+          </section>
           <p id="assessment-change" class="assessment-change" hidden></p>
-          <div id="assessment-reasons" class="assessment-reasons"></div>
+          <section class="assessment-reason-section" aria-labelledby="assessment-reasons-heading">
+            <h4 id="assessment-reasons-heading">Why Clue is concerned</h4>
+            <div id="assessment-reasons" class="assessment-reasons"></div>
+          </section>
           <details class="assessment-limitations">
             <summary>Limits of this assessment</summary>
             <ul id="assessment-limitations"></ul>

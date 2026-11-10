@@ -204,6 +204,12 @@ semantics are unchanged. Assessment contract version 1 is independent of both.
 The adapter's `assessUrl` export reruns passive analysis locally with a bounded
 typed context rather than retaining sensitive hidden global session state.
 
+The final Milestone 6.18 refinement adds a fixed action explanation and a
+bounded typed `next_steps` collection to the assessment object. These are
+strictly additive fields, so browser wire schema 2 and assessment contract 1
+remain compatible and consumer schema 1 is unchanged. Clue validates the new
+fields, but no core consumer-report shape or URL-analysis behaviour changes.
+
 See [CLUE_ASSESSMENT.md](CLUE_ASSESSMENT.md) for rules, context, privacy, and
 resource bounds, and [FUTURE_INTELLIGENCE.md](FUTURE_INTELLIGENCE.md) for
 strictly future opt-in intelligence and isolated active-investigation planning.

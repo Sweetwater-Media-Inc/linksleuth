@@ -44,6 +44,13 @@ function validResponse() {
         category_explanation: "Fixed explanation.",
         action_identifier: "verify-independently",
         action_title: "Verify independently.",
+        action_explanation: "Fixed recommendation explanation.",
+        next_steps: [
+          {
+            identifier: "verify-request-independently",
+            explanation: "Fixed next step.",
+          },
+        ],
         reasons: [
           {
             identifier: "url.example-reason",
@@ -110,4 +117,21 @@ test("rejects missing fields, evidence disclosure, and incomplete stage sets", (
   const rawContextSource = validResponse();
   rawContextSource.report.assessment.reasons[0].source = "private-email-value";
   assert.throws(() => validateBrowserResponse(rawContextSource), ContractError);
+
+  const missingNextSteps = validResponse();
+  missingNextSteps.report.assessment.next_steps = [];
+  assert.throws(() => validateBrowserResponse(missingNextSteps), ContractError);
+
+  const tooManyNextSteps = validResponse();
+  tooManyNextSteps.report.assessment.next_steps = Array.from({ length: 4 }, (_, index) => ({
+    identifier: `step-${index}`,
+    explanation: "Fixed next step.",
+  }));
+  assert.throws(() => validateBrowserResponse(tooManyNextSteps), ContractError);
+
+  const duplicateNextSteps = validResponse();
+  duplicateNextSteps.report.assessment.next_steps.push({
+    ...duplicateNextSteps.report.assessment.next_steps[0],
+  });
+  assert.throws(() => validateBrowserResponse(duplicateNextSteps), ContractError);
 });

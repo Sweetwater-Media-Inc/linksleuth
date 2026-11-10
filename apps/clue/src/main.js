@@ -32,7 +32,10 @@ const assessmentStatusLabel = requiredElement("assessment-status-label");
 const assessmentHeading = requiredElement("assessment-heading");
 const assessmentAction = requiredElement("assessment-action");
 const assessmentExplanation = requiredElement("assessment-explanation");
+const assessmentCategoryExplanation = requiredElement("assessment-category-explanation");
+const assessmentNextSteps = requiredElement("assessment-next-steps");
 const assessmentChange = requiredElement("assessment-change");
+const assessmentReasonsHeading = requiredElement("assessment-reasons-heading");
 const assessmentReasons = requiredElement("assessment-reasons");
 const assessmentLimitations = requiredElement("assessment-limitations");
 const openContextButton = requiredElement("open-context");
@@ -163,12 +166,17 @@ function renderAssessment(assessment, hasContext) {
     : "Preliminary assessment";
   assessmentHeading.textContent = assessment.category_title;
   assessmentAction.textContent = assessment.action_title;
-  assessmentExplanation.textContent = assessment.category_explanation;
+  assessmentExplanation.textContent = assessment.action_explanation;
+  assessmentCategoryExplanation.textContent = assessment.category_explanation;
+  assessmentNextSteps.replaceChildren();
+  for (const step of assessment.next_steps) {
+    const item = createElement("li");
+    item.textContent = step.explanation;
+    assessmentNextSteps.append(item);
+  }
   assessmentChange.hidden = !hasContext;
   if (hasContext) {
-    assessmentChange.textContent = assessment.context_changed_recommendation
-      ? "Your answers changed Clue's category or recommended action."
-      : "Your answers did not change the category or recommended action.";
+    assessmentChange.textContent = contextChangeExplanation(assessment);
   }
 
   assessmentReasons.replaceChildren();
@@ -176,6 +184,14 @@ function renderAssessment(assessment, hasContext) {
     ["url-analysis", "From the URL analysis"],
     ["user-context", "From your optional answers"],
   ];
+  const hasContextReasons = assessment.reasons.some(
+    (reason) => reason.source === "user-context",
+  );
+  assessmentReasons.dataset.layout = hasContextReasons ? "split" : "full";
+  assessmentReasonsHeading.textContent =
+    assessment.category_identifier === "no-clear-structural-warning-signs"
+      ? "What Clue considered"
+      : "Why Clue is concerned";
   for (const [source, title] of groups) {
     const reasons = assessment.reasons.filter((reason) => reason.source === source);
     if (reasons.length === 0) {
@@ -193,6 +209,12 @@ function renderAssessment(assessment, hasContext) {
     group.append(heading, list);
     assessmentReasons.append(group);
   }
+  if (assessment.reasons.length === 0) {
+    const emptyReason = createElement("p", "assessment-reason-empty");
+    emptyReason.textContent =
+      "Clue did not identify a supported URL or context warning reason.";
+    assessmentReasons.append(emptyReason);
+  }
 
   assessmentLimitations.replaceChildren();
   for (const limitation of assessment.limitations) {
@@ -200,6 +222,29 @@ function renderAssessment(assessment, hasContext) {
     item.textContent = limitation.explanation;
     assessmentLimitations.append(item);
   }
+}
+
+function contextChangeExplanation(assessment) {
+  const preliminary = preliminaryReport?.report.assessment;
+  if (preliminary === undefined || !assessment.context_changed_recommendation) {
+    return "Your answers did not change Clue's assessment or practical guidance.";
+  }
+
+  if (assessment.category_identifier !== preliminary.category_identifier) {
+    const change = `Your answers changed Clue's assessment from '${preliminary.category_title}' to '${assessment.category_title}'.`;
+    const hasUnexpectedDocumentReason = assessment.reasons.some(
+      (reason) => reason.identifier === "context.document-request-unexpected",
+    );
+    return hasUnexpectedDocumentReason
+      ? `${change} The unexpected document-signing request contributed to the stronger recommendation.`
+      : change;
+  }
+
+  if (assessment.action_identifier !== preliminary.action_identifier) {
+    return `Your answers changed Clue's recommended action from '${preliminary.action_title}' to '${assessment.action_title}'.`;
+  }
+
+  return "Your answers changed Clue's practical next steps.";
 }
 
 function renderObservations(observations) {
@@ -324,10 +369,15 @@ function buildSummary(response, includeContextReasons) {
     `Consumer report schema: ${report.consumer_schema_version}`,
     `Assessment contract: ${report.assessment.contract_version}`,
     "",
-    "Assessment",
-    report.assessment.category_title,
+    "Recommended action",
+    report.assessment.action_title,
+    report.assessment.action_explanation,
+    "",
+    `Assessment category: ${report.assessment.category_title}`,
     report.assessment.category_explanation,
-    `Recommended action: ${report.assessment.action_title}`,
+    "",
+    "What you should do",
+    ...report.assessment.next_steps.map((step) => `- ${step.explanation}`),
     "",
     "Assessment reasons",
   ];

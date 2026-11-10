@@ -61,9 +61,16 @@ test("renders encoded destinations and performs no analysis-triggered requests",
   await expect(
     page.getByRole("heading", { name: "This link contains another web address" }),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Proceed with caution" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Verify this link before opening it." }),
+  ).toBeVisible();
+  await expect(page.locator("#assessment-heading")).toHaveText("Proceed with caution");
   await expect(page.locator("#assessment-action")).toHaveText(
-    "Use a known website or application instead of this link.",
+    "Verify this link before opening it.",
+  );
+  await expect(page.getByRole("heading", { name: "What you should do" })).toBeVisible();
+  await expect(page.locator("#assessment-next-steps")).toContainText(
+    "Open the service's known website or app yourself",
   );
   await expect(page.getByText("Observed once")).toBeVisible();
   const cardWidth = await page.locator(".observation-card").first().evaluate(
@@ -89,8 +96,11 @@ test("shows the explicit non-verdict state when there are no observations", asyn
     page.getByText("No supported structural observations were found."),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "No clear structural warning signs" }),
+    page.getByRole("heading", { name: "No obvious structural warning signs found." }),
   ).toBeVisible();
+  await expect(page.locator("#assessment-heading")).toHaveText(
+    "No clear structural warning signs",
+  );
   await expect(page.locator("#assessment")).toContainText(
     "This does not establish that the website is trustworthy or safe.",
   );
@@ -109,7 +119,13 @@ test("keeps unsupported original-path analysis separate from completed stages", 
   await expect(
     page.getByText("Clue could not fully examine every supported structure in this link."),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Unable to assess reliably" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Clue cannot reliably assess this link." }),
+  ).toBeVisible();
+  await expect(page.locator("#assessment-heading")).toHaveText("Unable to assess reliably");
+  await expect(page.locator(".assessment-evidence-sufficiency")).toContainText(
+    "incomplete or unavailable",
+  );
   const limitations = page.locator("#coverage-limitations");
   await expect(limitations).toContainText("Original path was not fully examined");
   await expect(limitations).toContainText(
@@ -165,7 +181,8 @@ test("privacy-reduced results and explicit copy workflow exclude raw URL evidenc
   expect(summary).toContain("Clue privacy-reduced summary");
   expect(summary).toContain("Assessment contract: 1");
   expect(summary).toContain("Proceed with caution");
-  expect(summary).toContain("Recommended action:");
+  expect(summary).toContain("Recommended action\nVerify this link before opening it.");
+  expect(summary).toContain("What you should do");
   expect(summary).toContain("This link contains another web address — observed once");
   expect(summary).toContain("This is structural analysis, not a security verdict.");
   expect(summary).toContain("not guaranteed anonymous");
@@ -233,7 +250,18 @@ test("explains the motivating compound structure without disclosing its evidence
   ]) {
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
   }
-  await expect(page.getByRole("heading", { name: "Proceed with caution" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Verify this link before opening it." }),
+  ).toBeVisible();
+  await expect(page.locator("#assessment-heading")).toHaveText("Proceed with caution");
+  await expect(page.locator("#assessment-reasons")).toHaveAttribute("data-layout", "full");
+  const preliminaryReasonsWidth = await page.locator(".assessment-reason-group").first().evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  const preliminaryReasonAreaWidth = await page.locator("#assessment-reasons").evaluate(
+    (element) => element.getBoundingClientRect().width,
+  );
+  expect(preliminaryReasonsWidth).toBeGreaterThan(preliminaryReasonAreaWidth * 0.9);
   await expect(page.locator("#coverage-limitations")).toContainText(
     "Destination traversal was not fully examined",
   );
@@ -257,7 +285,30 @@ test("explains the motivating compound structure without disclosing its evidence
   await page
     .getByLabel("Were you expecting this contact or request?")
     .selectOption("unexpected");
-  await expect(page.getByRole("heading", { name: "Strong warning signs" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Do not open this link" })).toBeVisible();
+  await expect(page.locator("#assessment-heading")).toHaveText("Strong warning signs");
+  await expect(page.locator("#assessment-explanation")).toContainText(
+    "warning signs consistent with phishing",
+  );
+  await expect(page.locator("#assessment-next-steps")).toContainText(
+    "Contact the supposed sender through a trusted channel before opening or signing anything.",
+  );
+  await expect(page.locator("#assessment-next-steps")).toContainText(
+    "Do not rely on a reply to the same message",
+  );
+  await expect(page.locator("#assessment-change")).toContainText(
+    "changed Clue's assessment from 'Proceed with caution' to 'Strong warning signs'",
+  );
+  await expect(page.locator("#assessment-change")).toContainText(
+    "unexpected document-signing request contributed",
+  );
+  await expect(page.locator("#assessment-reasons")).toHaveAttribute("data-layout", "split");
+  const contextReasonWidths = await page.locator(".assessment-reason-group").evaluateAll(
+    (elements) => elements.map((element) => element.getBoundingClientRect().width),
+  );
+  expect(contextReasonWidths).toHaveLength(2);
+  expect(Math.abs(contextReasonWidths[0] - contextReasonWidths[1])).toBeLessThan(2);
+  expect(contextReasonWidths[0]).toBeGreaterThan(preliminaryReasonAreaWidth * 0.4);
   await expect(page.locator("#assessment-limitations")).toContainText(
     "User context cannot resolve the destination-like structure",
   );
@@ -296,20 +347,23 @@ test("offers optional progressive context and updates guidance without changing 
     .getByLabel("What did the message or page ask you to do?")
     .selectOption("enter-account-credentials");
 
-  await expect(page.getByRole("heading", { name: "Strong warning signs" })).toBeVisible();
-  await expect(page.locator("#assessment-action")).toContainText(
-    "Do not enter sensitive information",
+  await expect(page.getByRole("heading", { name: "Do not open this link" })).toBeVisible();
+  await expect(page.locator("#assessment-heading")).toHaveText("Strong warning signs");
+  await expect(page.locator("#assessment-next-steps")).toContainText(
+    "Do not enter your password through this link",
   );
   await expect(page.getByText("From your optional answers")).toBeVisible();
-  await expect(page.getByText("Your answers changed Clue's category or recommended action.")).toBeVisible();
+  await expect(page.locator("#assessment-change")).toContainText(
+    "changed Clue's assessment",
+  );
   await expect(page.locator("#observations")).toHaveText(observationsBefore);
 
   await page
     .getByLabel("Were you expecting this contact or request?")
     .selectOption("expected");
-  await expect(page.getByRole("heading", { name: "Proceed with caution" })).toBeVisible();
+  await expect(page.locator("#assessment-heading")).toHaveText("Proceed with caution");
   await expect(page.locator("#assessment-action")).toContainText(
-    "Do not enter sensitive information",
+    "Do not continue until this request is verified.",
   );
 
   await page.getByRole("button", { name: "Clear answers" }).click();
@@ -317,7 +371,7 @@ test("offers optional progressive context and updates guidance without changing 
     "Preliminary assessment",
   );
   await expect(page.locator("#assessment-action")).toHaveText(
-    "Use a known website or application instead of this link.",
+    "Verify this link before opening it.",
   );
   await expect(page.getByLabel("Where did the link come from?")).toHaveValue("");
   await expect(page.locator("#observations")).toHaveText(observationsBefore);

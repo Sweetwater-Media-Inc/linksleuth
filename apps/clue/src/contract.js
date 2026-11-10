@@ -89,8 +89,23 @@ function validateAssessment(assessment) {
     "category_explanation",
     "action_identifier",
     "action_title",
+    "action_explanation",
   ]) {
     assertNonEmptyString(assessment[field]);
+  }
+  assertArray(assessment.next_steps);
+  if (assessment.next_steps.length === 0 || assessment.next_steps.length > 3) {
+    throw new ContractError();
+  }
+  const nextStepIdentifiers = new Set();
+  for (const step of assessment.next_steps) {
+    assertRecord(step);
+    assertNonEmptyString(step.identifier);
+    assertNonEmptyString(step.explanation);
+    if (nextStepIdentifiers.has(step.identifier)) {
+      throw new ContractError();
+    }
+    nextStepIdentifiers.add(step.identifier);
   }
   assertArray(assessment.reasons);
   for (const reason of assessment.reasons) {

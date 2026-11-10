@@ -184,6 +184,12 @@ pub struct BrowserAssessmentLimitation {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserAssessmentNextStep {
+    identifier: String,
+    explanation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct BrowserAssessment {
     contract_version: u32,
     category_identifier: String,
@@ -191,6 +197,8 @@ pub struct BrowserAssessment {
     category_explanation: String,
     action_identifier: String,
     action_title: String,
+    action_explanation: String,
+    next_steps: Vec<BrowserAssessmentNextStep>,
     reasons: Vec<BrowserAssessmentReason>,
     limitations: Vec<BrowserAssessmentLimitation>,
     context_changed_recommendation: bool,
@@ -415,6 +423,15 @@ fn browser_assessment(assessment: &LinkAssessment) -> BrowserAssessment {
         category_explanation: assessment.category().explanation().to_string(),
         action_identifier: assessment.recommended_action().identifier().to_string(),
         action_title: assessment.recommended_action().title().to_string(),
+        action_explanation: assessment.recommended_action().explanation().to_string(),
+        next_steps: assessment
+            .recommended_next_steps()
+            .iter()
+            .map(|step| BrowserAssessmentNextStep {
+                identifier: step.identifier().to_string(),
+                explanation: step.explanation().to_string(),
+            })
+            .collect(),
         reasons: assessment
             .reasons()
             .iter()
@@ -584,6 +601,14 @@ mod tests {
         assert_eq!(value["wire_schema_version"], 2);
         assert_eq!(value["report"]["consumer_schema_version"], 1);
         assert_eq!(value["report"]["assessment"]["contract_version"], 1);
+        assert_eq!(
+            value["report"]["assessment"]["action_title"],
+            "Verify this link before opening it."
+        );
+        assert_eq!(
+            value["report"]["assessment"]["next_steps"][0]["identifier"],
+            "use-known-website-or-app"
+        );
         assert!(value["report"].get("hostname").is_none());
         assert!(value["report"].get("evidence").is_none());
         for sensitive in [
@@ -797,6 +822,38 @@ mod tests {
             contextual["report"]["assessment"]["context_changed_recommendation"],
             true
         );
+    }
+
+    #[test]
+    fn unexpected_document_context_produces_decisive_private_guidance() {
+        let input = concat!(
+            "https://social.example/link/v2?target=",
+            "tracking.example%2F%2Fpath%3Fadurl%3D%2F%2Fstorage.example%2Flanding"
+        );
+        let json = assess_for_browser_json(
+            input,
+            r#"{"source":"email","claimed_purpose":"document","expected_contact":"unexpected","requested_action":"view-content"}"#,
+        );
+        let value: Value = serde_json::from_str(&json).unwrap();
+        let assessment = &value["report"]["assessment"];
+
+        assert_eq!(assessment["category_identifier"], "strong-warning-signs");
+        assert_eq!(assessment["action_identifier"], "do-not-open-link");
+        assert_eq!(assessment["action_title"], "Do not open this link");
+        assert_eq!(assessment["next_steps"].as_array().unwrap().len(), 3);
+        assert_eq!(
+            assessment["next_steps"][1]["identifier"],
+            "verify-document-request-through-trusted-channel"
+        );
+        assert!(json.contains("consistent with phishing"));
+        for sensitive in [
+            "social.example",
+            "tracking.example",
+            "storage.example",
+            "adurl",
+        ] {
+            assert!(!json.contains(sensitive));
+        }
     }
 
     #[test]

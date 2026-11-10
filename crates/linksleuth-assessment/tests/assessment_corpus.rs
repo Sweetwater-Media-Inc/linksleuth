@@ -1,6 +1,6 @@
 use linksleuth_assessment::{
     AssessmentCategory, AssessmentContext, ClaimedPurpose, ExpectedContact, LinkSource,
-    RecommendedAction, RequestedAction, assess_link,
+    RecommendedAction, RecommendedNextStep, RequestedAction, assess_link,
 };
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::consumer::{ConsumerReportOptions, create_consumer_report};
@@ -52,7 +52,7 @@ fn assessment_corpus_matches_expected_outcomes() {
         );
     }
 
-    assert_eq!(count, 25);
+    assert_eq!(count, 29);
 }
 
 #[test]
@@ -104,10 +104,23 @@ fn fixed_assessment_text_avoids_certainty_and_source_evidence() {
             .with_expected_contact(ExpectedContact::Unexpected),
     );
     let rendered = format!(
-        "{} {} {} {} {:?}",
+        "{} {} {} {} {} {} {} {:?}",
         assessment.category().title(),
         assessment.category().explanation(),
         assessment.recommended_action().title(),
+        assessment.recommended_action().explanation(),
+        assessment
+            .recommended_next_steps()
+            .iter()
+            .map(|step| step.identifier())
+            .collect::<Vec<_>>()
+            .join(" "),
+        assessment
+            .recommended_next_steps()
+            .iter()
+            .map(|step| step.explanation())
+            .collect::<Vec<_>>()
+            .join(" "),
         assessment
             .reasons()
             .iter()
@@ -145,7 +158,7 @@ fn assessment_source_has_no_network_or_platform_dependencies() {
         "fetch(",
         "XMLHttpRequest",
         "window.",
-        "document.",
+        "window.document",
     ] {
         assert!(
             !source.contains(forbidden),
@@ -201,6 +214,118 @@ fn context_can_reduce_missing_context_uncertainty_but_not_technical_ambiguity() 
     assert_eq!(
         contextual.category(),
         AssessmentCategory::ProceedWithCaution
+    );
+}
+
+#[test]
+fn motivating_context_produces_decisive_bounded_steps_in_stable_order() {
+    let analysis = analyze_url(
+        "https://social.example/link/v2?aid=1988&scene=bio_url&target=tracking.example./%2Fpcs/click?fake-id%26amp%3B%26amp%3Badurl=%2F%2F%73%74%6F%72%61%67%65%2E%65%78%61%6D%70%6C%65%2Flanding.html#synthetic-fragment",
+    )
+    .unwrap();
+    let report = create_consumer_report(&analysis, ConsumerReportOptions::default());
+    let assessment = assess_link(
+        &report,
+        &AssessmentContext::new()
+            .with_source(LinkSource::Email)
+            .with_claimed_purpose(ClaimedPurpose::Document)
+            .with_expected_contact(ExpectedContact::Unexpected)
+            .with_requested_action(RequestedAction::ViewContent),
+    );
+
+    assert_eq!(
+        assessment.category(),
+        AssessmentCategory::StrongWarningSigns
+    );
+    assert_eq!(
+        assessment.recommended_action(),
+        RecommendedAction::DoNotOpenLink
+    );
+    assert_eq!(
+        assessment.recommended_next_steps(),
+        [
+            RecommendedNextStep::AvoidOpeningLink,
+            RecommendedNextStep::VerifyDocumentRequestThroughTrustedChannel,
+            RecommendedNextStep::AvoidReplyingToEstablishTrust,
+        ]
+    );
+    assert_eq!(assessment.recommended_next_steps().len(), 3);
+    assert!(
+        assessment
+            .recommended_action()
+            .explanation()
+            .contains("consistent with phishing")
+    );
+    assert!(
+        assessment
+            .recommended_action()
+            .explanation()
+            .contains("independently verify")
+    );
+}
+
+#[test]
+fn practical_guidance_is_specific_without_promoting_ordinary_links_to_strong_warning() {
+    let analysis = analyze_url("https://ordinary.example/account").unwrap();
+    let report = create_consumer_report(&analysis, ConsumerReportOptions::default());
+    let expected_credentials = assess_link(
+        &report,
+        &AssessmentContext::new()
+            .with_source(LinkSource::Email)
+            .with_claimed_purpose(ClaimedPurpose::AccountSignInOrVerification)
+            .with_expected_contact(ExpectedContact::Expected)
+            .with_requested_action(RequestedAction::EnterAccountCredentials),
+    );
+    assert_eq!(
+        expected_credentials.category(),
+        AssessmentCategory::ProceedWithCaution
+    );
+    assert_eq!(
+        expected_credentials.recommended_next_steps(),
+        [
+            RecommendedNextStep::AvoidCredentialsThroughLink,
+            RecommendedNextStep::VerifyRequestIndependently,
+        ]
+    );
+    assert!(
+        !expected_credentials
+            .recommended_action()
+            .explanation()
+            .contains("phishing")
+    );
+
+    let ordinary = assess_link(&report, &AssessmentContext::default());
+    assert_eq!(
+        ordinary.category(),
+        AssessmentCategory::NoClearStructuralWarningSigns
+    );
+    assert_eq!(
+        ordinary.recommended_next_steps(),
+        [RecommendedNextStep::ConfirmRequestMakesSense]
+    );
+    assert!(!ordinary.category().explanation().contains("phishing"));
+}
+
+#[test]
+fn evidence_families_and_next_steps_are_deduplicated() {
+    let analysis = analyze_url(
+        "https://top.example/?first=https%3A%2F%2Fone.example%2F&second=https%3A%2F%2Ftwo.example%2F",
+    )
+    .unwrap();
+    let report = create_consumer_report(&analysis, ConsumerReportOptions::default());
+    let assessment = assess_link(&report, &AssessmentContext::default());
+
+    assert_eq!(
+        assessment
+            .reasons()
+            .iter()
+            .filter(|reason| reason.identifier() == "url.destination-transparency-reduced")
+            .count(),
+        1
+    );
+    assert_eq!(
+        assessment.recommended_next_steps(),
+        [RecommendedNextStep::UseKnownWebsiteOrApp]
     );
 }
 

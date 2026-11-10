@@ -18,6 +18,10 @@ Milestone 6.18 adds an immediate deterministic assessment and actionable
 recommendation before observations. A short optional progressive context flow
 can update that guidance locally. Answers are finite categories, remain in page
 memory, are never persisted or transmitted, and can be revised or cleared.
+The final refinement makes the recommended action the primary headline,
+reserves **Do not open this link** for strong-warning outcomes, and provides a
+bounded list of fixed practical next steps. The category and evidence limits
+remain visible, and URL-derived versus user-reported reasons stay separate.
 
 ## Tool versions
 
@@ -119,13 +123,16 @@ Clue accepts only browser wire schema version 2, consumer report schema version
 1, and assessment contract version 1. Runtime validation checks success/error envelope shape,
 privacy-reduced disclosure, observations, occurrence counts, all four
 completeness stages, fixed reasons, and the absence of evidence references.
+The validator also requires the fixed action explanation and one to three
+typed practical next steps.
 
 An unknown version or malformed response produces a fixed compatibility error.
 The raw response is never rendered as a fallback.
 
 Wire schema 2 adds the required privacy-reduced assessment object. Consumer
-schema 1 remains unchanged. Version information remains available under
-**About this result**.
+schema 1 remains unchanged. The final action-explanation and next-step fields
+are additive, so wire schema 2 and assessment contract 1 remain unchanged.
+Version information remains available under **About this result**.
 
 ## Privacy boundary
 
