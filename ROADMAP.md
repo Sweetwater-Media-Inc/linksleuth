@@ -61,10 +61,19 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Introduce initial fixed-text, privacy-reduced structured findings for four supported observations.
 - [x] Extend detailed candidate provenance and privacy-reduced reporting to include nested/protocol-relative findings and incomplete discovery status.
 - [ ] Expand detailed findings beyond current supported candidate and normalization categories.
-- [x] Add automated, machine-readable synthetic destination regression corpus (expanded to 42 cases in Milestone 6.14) for legitimate, suspicious-looking, malformed, nested, ambiguous, bounded, and privacy-sensitive cases.
+- [x] Add automated, machine-readable synthetic destination regression corpus (expanded to 62 cases in Milestone 6.17) for legitimate, suspicious-looking, malformed, nested, ambiguous, bounded, and privacy-sensitive cases.
 - [x] Expand the corpus with 15 additional benign and misleading-positive cases, and add aggregate expectation-mismatch metrics (Milestone 6.14).
-- [ ] Continue expanding the corpus as new real-world-inspired, synthetic regression cases are identified.
+- [ ] Continue expanding the corpus beyond 62 cases as new real-world-inspired, synthetic regression cases are identified.
 - [ ] Introduce fuzz/property-based tests and evaluate false positives using the corpus and broader synthetic data.
+
+## Milestone 6.17: real-world structural discovery and Clue clarity
+
+- [x] Recognize narrowly scoped hostname-first references without assigning an unverified URL scheme.
+- [x] Add one-interpretation bounded compound query-value extraction, including encoded HTML delimiters and complete protocol-relative inner destination values.
+- [x] Add privacy-safe structural observations and interpretation ambiguity coverage; distinguish no candidate from no noteworthy supported evidence.
+- [x] Expand the machine-readable synthetic corpus from 42 to 62 cases with a motivating-example structural equivalent, and maintain zero expectation mismatches in reported local tests.
+- [x] Simplify Clue results: plain-language full-width findings, accessible expandable completeness details, and concise non-verdict messages.
+- [ ] Continue evaluating ambiguous hostname/path constructs and novel compound forms only when classification is defensible and bounded.
 
 ## Development documentation
 
@@ -98,6 +107,7 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Build a responsive static Clue prototype with actual WASM packaging and Chromium runtime analysis (Milestone 6.16).
 - [x] Instrument Chromium browser-runtime tests to confirm no analysis-triggered network requests in the tested local context.
 - [ ] Expand real browser tests to Firefox and WebKit, and verify local-first behaviour under a production hosting configuration.
+- [ ] Manually inspect Milestone 6.17 Clue results using the original motivating URL locally without navigating to the submitted or candidate destinations; do not commit the sensitive original URL.
 - [ ] Complete manual screen-reader/accessibility testing, maximum-size input performance checks, and production CSP validation.
 - [ ] Confirm remote Clue CI run on main.
 - [x] Build an initial accessible-by-design interface for URL input, observations, completeness and privacy-reduced summary; manual assistive-technology review remains pending.
