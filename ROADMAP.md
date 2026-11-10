@@ -86,6 +86,15 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [ ] Evaluate assessment calibration and false reassurance against broader labelled and synthetic examples, including phishing-like links with ordinary URL structure.
 - [ ] Test Firefox/WebKit, manually review accessibility and validate production privacy/CSP behaviour before public launch.
 
+## Milestone 6.19: Clue results layout and usability
+
+- [x] Show recommendation and optional context questions side by side on desktop (roughly 55/45) and stack them on smaller screens with a logical reading order.
+- [x] Increase desktop results space without stretching introductory/analyzer content; retain readable text and controls.
+- [x] Expose the first two optional context questions immediately, with the remaining two available on demand and all context editable/clearable.
+- [x] Collapse supporting structural findings by default, retain dynamic count and full evidence explanations, and keep important assessment limitations visible.
+- [x] Verify initial and context-aware layouts at 390, 768, 1280 and 1920 pixels in local Chromium; reported 23 actual-WASM Chromium tests and no triggered analysis network requests.
+- [ ] Manually verify screen-reader behaviour and test browser engines beyond Chromium before public release.
+
 ## Development documentation
 
 - [x] Document Clue's actual Chromium/WASM prototype, browser test boundary and remaining deployment gaps (Milestone 6.16).
