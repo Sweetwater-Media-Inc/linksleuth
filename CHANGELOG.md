@@ -5,6 +5,11 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 ## [Unreleased]
 
 ### Added
+- Milestone 6.17: conservatively classified ASCII hostname-first references in a restricted destination-parameter allowlist, without inventing an HTTP/HTTPS scheme; ambiguous authority/path boundaries remain unresolved and are surfaced through interpretation coverage.
+- Deterministic, bounded compound query interpretation (one interpretation, at most 16 inner parameters) using existing percent and HTML-reference decoders, including complete protocol-relative candidates extracted from recognized inner parameter values.
+- Fixed, typed structural observations for multiple percent transformations, encoded query delimiters, compound query values, and ambiguous hostname-first references, with consumer coverage and evidence provenance.
+- 20 synthetic corpus additions (62 total), including `compound_encoded_destination_example`; local verification reported 165 passing Rust tests, five frontend contract/privacy tests and 13 actual-WASM Chromium tests, with zero corpus expectation mismatches and zero observed analysis-triggered network requests in the test context.
+- Clue presentation refinements: full-width plain-language observation rows, technical identifier removal from primary results, concise coverage with expandable four-stage details, limitation visibility, accessible results focus and reduced introductory spacing.
 - Milestone 6.16: first working static Clue browser application (`apps/clue`) using vanilla JavaScript, Vite, and actual browser-packaged LinkSleuth WASM; accessible responsive observation and four-stage completeness rendering.
 - Strict browser-wire and consumer-schema version 1 runtime validation, fixed private error handling, and privacy-reduced summary review/copy workflow; detailed evidence intentionally excluded.
 - Reproducible WASM packaging via pinned `wasm-bindgen-cli 0.2.130`, locked npm dependencies, generated-output exclusions, and dedicated Chromium browser CI workflow (remote status not yet confirmed).
@@ -56,6 +61,7 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Expanded CLI tests for exact privacy-reduced output, no URL-derived evidence in shareable stdout/stderr, hostname opt-in, invalid arguments, and unchanged detailed output.
 
 ### Changed
+- Milestone 6.17: lower-level destination and shareable enums gained variants, and destination discovery gained structural/interpretation coverage fields; exhaustive matches and external struct literals may require changes. Consumer and browser wire schema versions remain 1 because the existing contract shapes remain compatible.
 - Milestone 6.14 preserves existing detailed analysis, shareable report API, and CLI output unchanged; the new consumer API is the recommended integration surface for Clue and future consumers. No serialization/wire format was introduced and real-world false-positive rates have not been measured.
 - Milestone 6.13: `DestinationDiscovery` carries encoding coverage and issues alongside resource-limit status; use `DestinationDiscovery::is_complete()` to consider both. Several public report/provenance structs gained fields and enums gained variants, potentially affecting downstream struct literals or exhaustive matches.
 - Destination classification now conservatively rejects control characters in candidate references.
