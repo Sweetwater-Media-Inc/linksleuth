@@ -36,6 +36,10 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 - Clue's initial browser frontend validates both independent schema versions at runtime, renders report strings as text rather than HTML, does not persist submitted URLs or include them in errors, and requires separate review/copy actions for privacy-reduced summaries. Milestones 6.17–6.18 add plain-language structural findings, optional post-analysis context and decisive typed guidance while hiding internal identifiers and preserving detailed technical evidence restrictions. Context is bounded to four optional finite-enum fields (1 KiB JSON maximum) and never stored or sent during analysis. Summaries omit context-derived reasons by default, unless the user explicitly opts in; standardized guidance steps may still indirectly reveal the type of context and are not anonymous. Detailed evidence remains unavailable in the browser adapter.
 - Static assets can require network access when the app loads; the privacy test boundary is network traffic **caused by analyzing** a URL after initialization. Production CSP headers, Firefox/WebKit, deployed hosting and manual assistive-technology evaluation are still outstanding.
 
+### Presentation-layer privacy and disclosure
+
+Milestone 6.19 reorganizes Clue's results without changing URL evidence, assessment rules, browser contracts or network behaviour. Optional context appears alongside recommendations on desktop, while supporting observations are collapsed by default. Material uncertainty and incomplete-analysis limitations must remain visible even with technical findings collapsed. Expanded supporting findings must only render the fixed privacy-reduced data already returned by WASM; no source URLs, candidate destinations, raw context or hostname disclosure may be introduced by layout changes. The local Chromium suite reportedly observed zero analysis-triggered requests; this is not a guarantee for other browsers or production deployments.
+
 ## Engineering and testing expectations
 
 - Use synthetic adversarial URLs with distinctive fake secrets for regression tests.
