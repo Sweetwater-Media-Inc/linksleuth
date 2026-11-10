@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; font-src 'none'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'"
+    />
+    <meta
+      name="description"
+      content="Clue performs private, local structural analysis of links using LinkSleuth."
+    />
+    <title>Clue — Understand a link before you click it</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to link analysis</a>
+
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="/" aria-label="Clue home">
+          <svg
+            class="brand-icon"
+            viewBox="0 0 48 48"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <circle cx="21" cy="21" r="11" fill="none" stroke="currentColor" stroke-width="4" />
+            <path d="m29 29 11 11" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" />
+            <path d="M16 21h10M21 16v10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+          <span>
+            <strong>Clue</strong>
+            <small>Powered by LinkSleuth</small>
+          </span>
+        </a>
+
+        <div class="local-indicator" aria-live="polite">
+          <span class="indicator-dot" aria-hidden="true"></span>
+          <span id="analyzer-status">Preparing local analyzer…</span>
+        </div>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">Private, local link analysis</p>
+        <h1 id="page-title">Understand a link before you click it.</h1>
+        <p class="intro-copy">
+          Paste a link to explore its structure and possible destinations without
+          visiting the website.
+        </p>
+      </section>
+
+      <section class="analyzer-panel" aria-labelledby="analyzer-heading">
+        <div class="section-heading">
+          <div>
+            <p class="step-label">Analyze a link</p>
+            <h2 id="analyzer-heading">What would you like to inspect?</h2>
+          </div>
+          <span class="local-chip">Runs on this device</span>
+        </div>
+
+        <form id="analysis-form" novalidate>
+          <label for="url-input">URL to analyze</label>
+          <div class="input-row">
+            <input
+              id="url-input"
+              name="url"
+              type="text"
+              inputmode="url"
+              autocomplete="off"
+              autocapitalize="none"
+              spellcheck="false"
+              aria-describedby="input-help analysis-error"
+              placeholder="https://example.com/path?destination=…"
+            />
+            <button id="analyze-button" class="primary-button" type="submit">
+              Analyze URL
+            </button>
+          </div>
+          <p id="input-help" class="field-help">
+            Nothing is submitted while you type or paste. Analysis begins only
+            when you choose Analyze URL.
+          </p>
+          <p id="analysis-error" class="error-message" role="alert" hidden></p>
+        </form>
+
+        <div class="privacy-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 2 4.5 5v5.5c0 5 3.2 9.6 7.5 11.5 4.3-1.9 7.5-6.5 7.5-11.5V5L12 2Z" fill="none" stroke="currentColor" stroke-width="1.8" />
+            <path d="m8.7 12.2 2.1 2.1 4.6-4.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <p>
+            After Clue's own files load, the link is analyzed locally. Clue does
+            not visit the site, load possible destinations, or decide whether a
+            link is safe or malicious.
+          </p>
+        </div>
+      </section>
+
+      <p id="announcement" class="visually-hidden" aria-live="polite"></p>
+
+      <section id="results" class="results" aria-labelledby="results-heading" hidden>
+        <div class="results-header">
+          <div>
+            <p class="step-label">Local analysis</p>
+            <h2 id="results-heading" tabindex="-1">What Clue observed</h2>
+          </div>
+          <div class="schema-meta" aria-label="Report schema versions">
+            <span>Wire <strong id="wire-version"></strong></span>
+            <span>Report <strong id="consumer-version"></strong></span>
+          </div>
+        </div>
+
+        <div id="observations" class="observations"></div>
+
+        <section class="completeness" aria-labelledby="completeness-heading">
+          <div class="completeness-intro">
+            <div>
+              <p class="step-label">Analysis coverage</p>
+              <h3 id="completeness-heading">What was examined</h3>
+            </div>
+            <p id="overall-completeness" class="coverage-label"></p>
+          </div>
+          <p class="coverage-note">
+            Completion applies only to LinkSleuth's supported, bounded analysis.
+            It is not a safety verdict.
+          </p>
+          <div id="completeness-stages" class="stage-grid"></div>
+        </section>
+
+        <div class="summary-action">
+          <div>
+            <h3>Share less, deliberately</h3>
+            <p>
+              Review a summary built only from this privacy-reduced report. It
+              still contains observation metadata and is not anonymous.
+            </p>
+          </div>
+          <button
+            id="review-summary"
+            class="secondary-button"
+            type="button"
+            aria-controls="summary-review"
+            aria-expanded="false"
+          >
+            Review summary
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="summary-review"
+        class="summary-review"
+        aria-labelledby="summary-heading"
+        hidden
+      >
+        <div class="section-heading">
+          <div>
+            <p class="step-label">Privacy-reduced summary</p>
+            <h2 id="summary-heading" tabindex="-1">Review before copying</h2>
+          </div>
+          <button id="close-summary" class="text-button" type="button">
+            Close summary
+          </button>
+        </div>
+        <label for="summary-text">Selectable summary text</label>
+        <textarea id="summary-text" rows="16" readonly></textarea>
+        <div class="summary-controls">
+          <button id="copy-summary" class="primary-button" type="button">
+            Copy summary
+          </button>
+          <p id="copy-status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        Clue explains supported URL structures. It does not fetch websites,
+        follow redirects, use reputation services, or provide a security verdict.
+      </p>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

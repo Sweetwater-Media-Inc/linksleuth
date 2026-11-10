@@ -7,7 +7,17 @@ helps a person understand the structure of a URL before deciding what to do
 with it. Clue explains observations and analysis limitations; it does not label
 a URL safe or malicious.
 
-This document describes an MVP, not a complete frontend design.
+This document describes the MVP implemented by the first Clue browser
+prototype, not a production deployment or a complete frontend design.
+
+## Prototype status
+
+Milestone 6.16 implements the workflow in `apps/clue` using a static Vite
+application and the actual `linksleuth-wasm` adapter. The production build is
+packaged with `wasm-bindgen` and verified in Chromium with runtime schema,
+privacy, network, keyboard, summary, and responsive-layout tests. Detailed
+evidence remains deliberately unavailable, and public hosting plus manual
+assistive-technology review remain future work.
 
 ## MVP goals
 
@@ -266,4 +276,5 @@ local correction, but it is not copied into the error message or logs.
 6. Add privacy-reduced export with a disclosure review.
 7. Design and security-review a separate opt-in evidence boundary.
 8. Complete keyboard, screen-reader, zoom/reflow, and privacy testing.
-9. Add browser-runtime tests for module loading and representative analysis.
+9. Maintain and expand browser-runtime coverage beyond the initial Chromium
+   module-loading, analysis, privacy, network, and responsive-layout tests.

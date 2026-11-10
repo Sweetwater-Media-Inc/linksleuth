@@ -2,10 +2,10 @@
 
 ## Scope
 
-This assessment records Milestone 6.15 evidence for using LinkSleuth from an
-independent Rust package and, eventually, a browser application. It does not
-claim that Clue exists, that browser execution has been tested, or that the
-consumer API is permanently frozen.
+This assessment records Milestone 6.15 and 6.16 evidence for using LinkSleuth
+from an independent Rust package and the first Clue browser prototype. It does
+not claim that the application is production-hardened or that the consumer API
+is permanently frozen.
 
 ## Independent Rust integration
 
@@ -65,18 +65,30 @@ cargo check -p linksleuth-wasm --target wasm32-unknown-unknown
 
 These are architectural separations, not defects in the reusable core.
 
+### Verified in the Clue prototype
+
+- `wasm-bindgen 0.2.130` packages the release adapter for `web` output.
+- Vite imports and initializes the generated bindings and WASM binary.
+- Chromium executes `analyzeUrl(input)` through the actual adapter.
+- Runtime validation accepts browser wire schema 1 and consumer schema 1 and
+  rejects unknown or incomplete contracts.
+- Playwright exercises observations, no-observation output, incomplete stages,
+  fixed errors, keyboard interaction, summary review/copy, and mobile layout.
+- Request instrumentation confirms that analysis produces no request after the
+  application's own local assets have loaded and does not contact synthetic
+  submitted or candidate hostnames.
+
 ### Not yet verified
 
-- Loading generated WebAssembly in a real browser or JavaScript runtime
-- JavaScript bundler and package-generation workflow
 - Runtime behavior across supported browsers
 - Browser memory and performance characteristics for maximum-size inputs
-- Content Security Policy and deployment configuration
-- Browser accessibility and DOM rendering
+- Public-host Content Security Policy and deployment configuration
+- Manual assistive-technology behavior
 - The future explicit technical-evidence disclosure flow
 
-Successful compilation demonstrates target portability. It does not prove
-browser execution or JavaScript interoperability on its own.
+Successful target compilation demonstrates portability but remains distinct
+from browser execution. Clue's Chromium suite now supplies browser-runtime
+evidence; other browsers and public deployment remain unverified.
 
 ## Browser adapter decision
 
@@ -144,6 +156,8 @@ zero-observation presentation data, incomplete stages, and absence of network
 client imports. Existing workspace tests continue to cover core behavior and
 CLI compatibility.
 
-The target check compiles the WebAssembly adapter. No browser, Node.js, or
-equivalent runtime test is part of this milestone, so browser-runtime coverage
-must not be claimed.
+Node tests cover the untrusted JSON contract and prohibited frontend source
+patterns. Playwright runs the production build with generated WASM in Chromium
+and instruments network requests during analysis. These tests establish local
+Chromium behavior, not behavior in every browser or a deployed hosting
+environment.
