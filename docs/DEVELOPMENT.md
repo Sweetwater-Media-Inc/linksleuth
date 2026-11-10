@@ -30,6 +30,10 @@ We develop in reviewed, meaningful batches. Feature scope and acceptance criteri
 - From `apps/clue`, use `npm ci`, `npm run dev`, `npm run build`, and `npm test` with the matching Rust WASM target and wasm-bindgen CLI. `npm test` runs production build, contract/privacy checks and real-WASM Chromium tests. See [../apps/clue/README.md](../apps/clue/README.md) for pinned versions and first-time setup.
 - See [CLUE_MVP.md](CLUE_MVP.md) and [CLUE_INTEGRATION_READINESS.md](CLUE_INTEGRATION_READINESS.md).
 
+### Clue layout regression expectations
+
+When changing Clue presentation, test initial and context-aware results using the real production WASM adapter. Verify the assessment/context desktop grid and stacked mobile reading order, native supporting-findings disclosure, important visible limitations, keyboard/focus/scroll continuity across context updates, summary privacy and zero analysis-triggered requests. Milestone 6.19 locally reported 23 actual-WASM Chromium tests (19 desktop and four mobile) across 390, 768, 1280 and 1920px visual inspection, alongside 176 Rust and five Node contract/privacy tests. Manual screen-reader testing and non-Chromium browser validation remain outstanding.
+
 ## Required checks
 
 Run from workspace root:
