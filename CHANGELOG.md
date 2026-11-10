@@ -4,6 +4,9 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 
 ## [Unreleased]
 
+- Milestone 6.19: responsive results workspace showing the recommendation/assessment alongside optional context questions on desktop (approximately 55/45), with a bounded 88rem results width and mobile/tablet stacking at 60rem and below.
+- First two optional context questions are immediately visible; two more can be revealed on demand. Supporting URL observations now appear in a collapsed-by-default native disclosure with a dynamic finding count, while material limitations stay visible in the primary assessment.
+- Additional local actual-WASM Chromium browser checks for layout, disclosure, context changes, keyboard/focus/scroll and privacy; reported verification: 176 Rust tests, 5 Node contract/privacy tests, and 23 Chromium tests (19 desktop, 4 mobile), with no analysis-triggered requests in the tested context.
 ### Added
 - Milestone 6.18: independent `linksleuth-assessment` Rust crate consuming the public core consumer report API, with four deterministic categories, evidence-family deduplication, typed recommendations, limitations and separately attributed URL/context reasons.
 - Clue provides an immediate local assessment before offering optional progressive questions about link source, claimed purpose, expected contact and requested action; partial answers, revision, clearing and transparent assessment/action changes are supported without altering URL evidence.
