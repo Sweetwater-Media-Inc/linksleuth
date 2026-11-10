@@ -5,6 +5,12 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 ## [Unreleased]
 
 ### Added
+- Milestone 6.18: independent `linksleuth-assessment` Rust crate consuming the public core consumer report API, with four deterministic categories, evidence-family deduplication, typed recommendations, limitations and separately attributed URL/context reasons.
+- Clue provides an immediate local assessment before offering optional progressive questions about link source, claimed purpose, expected contact and requested action; partial answers, revision, clearing and transparent assessment/action changes are supported without altering URL evidence.
+- Final 6.18 refinement: action-first headlines such as **Do not open this link** for supported strong-warning combinations, fixed explanations and up to three typed practical next steps; high-concern language distinguishes suspected phishing patterns from unverified malicious intent.
+- Local WASM `assessUrl(input, contextJson)` with bounded 1 KiB finite-enum context and no persistent session; browser wire schema advanced to 2 for the mandatory assessment, while Rust consumer schema remains 1 and independent assessment contract starts at 1.
+- A separate 29-case synthetic assessment corpus (in addition to the 62 destination cases), with local verification reported at 176 passing Rust tests, five frontend contract/privacy tests and 18 actual-WASM Chromium browser tests. No analysis/reassessment-triggered network requests were observed in the tested Chromium context.
+- Milestone-specific `docs/CLUE_ASSESSMENT.md` and `docs/FUTURE_INTELLIGENCE.md` covering assessment rules, explicit opt-in evidence submission and separately isolated active investigation as future concepts only.
 - Milestone 6.17: conservatively classified ASCII hostname-first references in a restricted destination-parameter allowlist, without inventing an HTTP/HTTPS scheme; ambiguous authority/path boundaries remain unresolved and are surfaced through interpretation coverage.
 - Deterministic, bounded compound query interpretation (one interpretation, at most 16 inner parameters) using existing percent and HTML-reference decoders, including complete protocol-relative candidates extracted from recognized inner parameter values.
 - Fixed, typed structural observations for multiple percent transformations, encoded query delimiters, compound query values, and ambiguous hostname-first references, with consumer coverage and evidence provenance.
@@ -61,6 +67,8 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 - Expanded CLI tests for exact privacy-reduced output, no URL-derived evidence in shareable stdout/stderr, hostname opt-in, invalid arguments, and unchanged detailed output.
 
 ### Changed
+- Clue now prioritizes the recommended action and next steps over technical observations; the privacy-reduced review/copy report includes fixed assessment information and guidance, excludes context-derived reasons unless explicitly selected, and cannot guarantee anonymity because standardized next steps may disclose context categories.
+- New public assessment enums/accessors and additive browser fields accompany schema 2; downstream code should validate the appropriate independent contract versions. No active reputation lookup, destination navigation, or investigation has been implemented.
 - Milestone 6.17: lower-level destination and shareable enums gained variants, and destination discovery gained structural/interpretation coverage fields; exhaustive matches and external struct literals may require changes. Consumer and browser wire schema versions remain 1 because the existing contract shapes remain compatible.
 - Milestone 6.14 preserves existing detailed analysis, shareable report API, and CLI output unchanged; the new consumer API is the recommended integration surface for Clue and future consumers. No serialization/wire format was introduced and real-world false-positive rates have not been measured.
 - Milestone 6.13: `DestinationDiscovery` carries encoding coverage and issues alongside resource-limit status; use `DestinationDiscovery::is_complete()` to consider both. Several public report/provenance structs gained fields and enums gained variants, potentially affecting downstream struct literals or exhaustive matches.
