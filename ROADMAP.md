@@ -75,6 +75,17 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Simplify Clue results: plain-language full-width findings, accessible expandable completeness details, and concise non-verdict messages.
 - [ ] Continue evaluating ambiguous hostname/path constructs and novel compound forms only when classification is defensible and bounded.
 
+## Milestone 6.18: context-aware assessment and decisive guidance
+
+- [x] Add an independently testable Rust assessment crate consuming the public privacy-reduced core consumer interface, without changing the passive engine.
+- [x] Provide immediate, qualified preliminary assessments and optional progressive context questions after analysis; keep all context local and allow revision/clearing.
+- [x] Use deterministic evidence families, context attribution and explicit limitations instead of numeric phishing probabilities or conflating correlated findings.
+- [x] Lead strong-warning results with **Do not open this link**, fixed explanations and at most three practical next steps; preserve distinct technical evidence, user-reported context and unverified inferences.
+- [x] Add a separate 29-case synthetic assessment corpus and actual-WASM Chromium tests; local test reports show zero analysis-triggered requests, not a general deployment guarantee.
+- [x] Maintain independently versioned consumer schema 1, assessment contract 1 and browser wire schema 2.
+- [ ] Evaluate assessment calibration and false reassurance against broader labelled and synthetic examples, including phishing-like links with ordinary URL structure.
+- [ ] Test Firefox/WebKit, manually review accessibility and validate production privacy/CSP behaviour before public launch.
+
 ## Development documentation
 
 - [x] Document Clue's actual Chromium/WASM prototype, browser test boundary and remaining deployment gaps (Milestone 6.16).
@@ -99,20 +110,22 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Measure expected-positive/negative corpus mismatches without claiming real-world detection accuracy.
 - [ ] Add more diverse synthetic and adversarial samples to evaluate detection quality beyond the current corpus.
 - [x] Verify `wasm32-unknown-unknown` compilation, add an isolated privacy-reduced WASM adapter with versioned JSON wire output, and define Clue's local-first MVP (Milestone 6.15).
-- [ ] Package the WASM adapter with wasm-bindgen and verify JavaScript/browser-runtime integration.
+- [x] Package the WASM adapter with wasm-bindgen and verify JavaScript/browser-runtime integration in local Chromium (Milestone 6.16); Firefox/WebKit and deployment validation remain open.
 
 ## Future: Clue companion web interface
 
-- [x] Compile the reusable core and browser adapter for `wasm32-unknown-unknown` (compilation only; browser execution remains unverified).
+- [x] Compile the reusable core, assessment crate and browser adapter for `wasm32-unknown-unknown`; execute the packaged adapter locally in Chromium.
 - [x] Build a responsive static Clue prototype with actual WASM packaging and Chromium runtime analysis (Milestone 6.16).
 - [x] Instrument Chromium browser-runtime tests to confirm no analysis-triggered network requests in the tested local context.
 - [ ] Expand real browser tests to Firefox and WebKit, and verify local-first behaviour under a production hosting configuration.
-- [ ] Manually inspect Milestone 6.17 Clue results using the original motivating URL locally without navigating to the submitted or candidate destinations; do not commit the sensitive original URL.
+- [x] Manually inspect Milestone 6.17 Clue results using the original motivating URL locally without navigating to submitted or candidate destinations; do not commit the sensitive original URL.
+- [ ] Manually validate the refined Milestone 6.18 strong-warning UI against the motivating URL with optional context, without uploading or navigating to the URL.
 - [ ] Complete manual screen-reader/accessibility testing, maximum-size input performance checks, and production CSP validation.
 - [ ] Confirm remote Clue CI run on main.
 - [x] Build an initial accessible-by-design interface for URL input, observations, completeness and privacy-reduced summary; manual assistive-technology review remains pending.
 - [x] Analyze submitted URLs locally through real WASM in Chromium, with network-request assertions against analysis.
 - [x] Show plain-language structured observations and completeness using the privacy-reduced browser response.
+- [x] Add immediate local context-aware assessment with actionable warnings and typed next steps (Milestone 6.18).
 - [ ] Design and security-review explicit local technical-evidence disclosure before implementation.
 - [x] Offer a review-first privacy-reduced summary with an explicit copy action; counts/categories may reveal metadata.
 - [ ] Publish explicit privacy and security documentation.
@@ -122,6 +135,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [ ] Browser extensions with manual right-click inspection.
 - [ ] Email-client integrations, subject to each client's extension capabilities.
 - [ ] Optional, privacy-conscious reputation intelligence with separately disclosed network activity.
+- [ ] Explore explicitly opted-in, privacy-minimized reports of suspicious URLs with corroboration and human-reviewed hosting-provider abuse submissions; see [docs/FUTURE_INTELLIGENCE.md](docs/FUTURE_INTELLIGENCE.md).
+- [ ] Design a separate, authorized active investigation service using disposable hardened isolation, strict outbound-network controls and evidence retention safeguards; never add active navigation to LinkSleuth or default Clue analysis.
 - [ ] Developer-facing API or library integration examples.
 - [ ] Sustainable business offerings that do not compromise the free open-source engine or user privacy.
 
