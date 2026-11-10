@@ -23,7 +23,11 @@ rustup target add wasm32-unknown-unknown
 cargo check -p linksleuth-wasm --target wasm32-unknown-unknown
 ```
 
-On WebAssembly, `analyzeUrl(input)` returns the JSON envelope as a string. This
-crate has compilation coverage, not browser-runtime execution coverage. It does
-not fetch the submitted URL, resolve DNS, follow redirects, or load discovered
-destinations.
+On WebAssembly, `analyzeUrl(input)` returns the JSON envelope as a string. The
+Clue prototype under `apps/clue` packages this export with `wasm-bindgen` and
+exercises it in real Chromium browser tests. The adapter does not fetch the
+submitted URL, resolve DNS, follow redirects, or load discovered destinations.
+
+Browser packaging and runtime commands are documented in
+`apps/clue/README.md`. The Rust target build alone is still only a compilation
+check; Clue's separate Playwright suite provides the browser-runtime evidence.
