@@ -5,6 +5,11 @@ All notable changes to LinkSleuth are documented here. This project uses the [Ke
 ## [Unreleased]
 
 ### Added
+- Milestone 6.16: first working static Clue browser application (`apps/clue`) using vanilla JavaScript, Vite, and actual browser-packaged LinkSleuth WASM; accessible responsive observation and four-stage completeness rendering.
+- Strict browser-wire and consumer-schema version 1 runtime validation, fixed private error handling, and privacy-reduced summary review/copy workflow; detailed evidence intentionally excluded.
+- Reproducible WASM packaging via pinned `wasm-bindgen-cli 0.2.130`, locked npm dependencies, generated-output exclusions, and dedicated Chromium browser CI workflow (remote status not yet confirmed).
+- Automated frontend contract/privacy tests (5), real-WASM Chromium runtime tests (10), and request instrumentation verifying zero requests initiated by analysis in the tested browser context. Existing Rust workspace tests reportedly remained at 156 passing locally; browser/runtime findings are not general deployment guarantees.
+- Clue MVP and integration assessment revised to record Chromium execution, privacy validation, and outstanding accessibility, CSP, cross-browser, and deployment work.
 - Milestone 6.15: independent `examples/consumer-app` workspace package exercising the public Rust consumer API, stage completeness, privacy defaults, and independent hostname/evidence options through integration tests.
 - Separate `crates/linksleuth-wasm` adapter with explicit browser JSON wire schema version 1 and privacy-reduced `analyze_for_browser()`/`analyze_for_browser_json()` entry points; target-specific `analyzeUrl(input)` binding for WASM.
 - Verified local `wasm32-unknown-unknown` checks/builds for core and adapter plus WASM-target test compilation. Browser execution, wasm-bindgen packaging, and JavaScript interop remain unverified.
