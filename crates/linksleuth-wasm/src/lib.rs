@@ -5,19 +5,26 @@
 //! applications must treat returned strings as data and render them with safe
 //! text APIs rather than interpolating them as HTML.
 
+use linksleuth_assessment::{
+    AssessmentContext, ClaimedPurpose, ExpectedContact, LinkAssessment, LinkSource,
+    RequestedAction, assess_link,
+};
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::consumer::{
     ConsumerCompletenessStatus, ConsumerReport, ConsumerReportOptions, ConsumerStageStatus,
     create_consumer_report,
 };
 use linksleuth_core::parser::UrlError;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 /// Version of the browser JSON envelope, independent of the consumer schema.
-pub const BROWSER_WIRE_SCHEMA_VERSION: u32 = 1;
+pub const BROWSER_WIRE_SCHEMA_VERSION: u32 = 2;
+
+/// Maximum serialized optional context accepted from the browser.
+pub const MAX_ASSESSMENT_CONTEXT_BYTES: usize = 1024;
 
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -28,6 +35,7 @@ pub enum BrowserErrorCode {
     UnsupportedScheme,
     InputTooLong,
     TooManyQueryParameters,
+    InvalidContext,
     AnalysisFailure,
 }
 
@@ -137,6 +145,7 @@ pub struct BrowserReport {
     disclosure: &'static str,
     observations: Vec<BrowserObservation>,
     completeness: BrowserCompleteness,
+    assessment: BrowserAssessment,
 }
 
 impl BrowserReport {
@@ -155,6 +164,102 @@ impl BrowserReport {
     pub const fn completeness(&self) -> &BrowserCompleteness {
         &self.completeness
     }
+
+    pub const fn assessment(&self) -> &BrowserAssessment {
+        &self.assessment
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserAssessmentReason {
+    identifier: String,
+    source: String,
+    explanation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserAssessmentLimitation {
+    identifier: String,
+    explanation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserAssessment {
+    contract_version: u32,
+    category_identifier: String,
+    category_title: String,
+    category_explanation: String,
+    action_identifier: String,
+    action_title: String,
+    reasons: Vec<BrowserAssessmentReason>,
+    limitations: Vec<BrowserAssessmentLimitation>,
+    context_changed_recommendation: bool,
+}
+
+impl BrowserAssessment {
+    pub fn category_identifier(&self) -> &str {
+        &self.category_identifier
+    }
+
+    pub fn action_identifier(&self) -> &str {
+        &self.action_identifier
+    }
+
+    pub const fn context_changed_recommendation(&self) -> bool {
+        self.context_changed_recommendation
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrowserAssessmentContext {
+    source: Option<BrowserLinkSource>,
+    claimed_purpose: Option<BrowserClaimedPurpose>,
+    expected_contact: Option<BrowserExpectedContact>,
+    requested_action: Option<BrowserRequestedAction>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum BrowserLinkSource {
+    Email,
+    Message,
+    SocialMedia,
+    WebsiteOrSearch,
+    QrCode,
+    OtherOrUnknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum BrowserClaimedPurpose {
+    Document,
+    AccountSignInOrVerification,
+    DeliveryOrShipping,
+    PaymentOrFinancialRequest,
+    OrdinaryContent,
+    SoftwareDownloadOrInstall,
+    OtherOrUnknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum BrowserExpectedContact {
+    Expected,
+    Unexpected,
+    Unsure,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum BrowserRequestedAction {
+    ViewContent,
+    EnterAccountCredentials,
+    ProvidePersonalInformation,
+    MakePayment,
+    DownloadOrInstallSoftware,
+    ContactSomeone,
+    OtherOrUnknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -196,6 +301,10 @@ impl BrowserResponse {
 
 /// Runs local passive analysis and returns only the privacy-reduced browser model.
 pub fn analyze_for_browser(input: &str) -> BrowserResponse {
+    analyze_for_browser_with_context(input, &AssessmentContext::default())
+}
+
+fn analyze_for_browser_with_context(input: &str, context: &AssessmentContext) -> BrowserResponse {
     if input.trim().is_empty() {
         return BrowserResponse::failure(error(
             BrowserErrorCode::EmptyInput,
@@ -206,7 +315,8 @@ pub fn analyze_for_browser(input: &str) -> BrowserResponse {
     match analyze_url(input) {
         Ok(analysis) => {
             let report = create_consumer_report(&analysis, ConsumerReportOptions::default());
-            BrowserResponse::success(browser_report(&report))
+            let assessment = assess_link(&report, context);
+            BrowserResponse::success(browser_report(&report, &assessment))
         }
         Err(source) => BrowserResponse::failure(browser_error(&source)),
     }
@@ -218,6 +328,26 @@ pub fn analyze_for_browser_json(input: &str) -> String {
     serde_json::to_string(&response).unwrap_or_else(|_| fixed_serialization_failure().to_string())
 }
 
+/// Reassesses the same URL locally with optional typed context.
+pub fn assess_for_browser_json(input: &str, context_json: &str) -> String {
+    if context_json.len() > MAX_ASSESSMENT_CONTEXT_BYTES {
+        return serialize_response(BrowserResponse::failure(error(
+            BrowserErrorCode::InvalidContext,
+            "Clue could not use the optional context answers.",
+        )));
+    }
+    let context = match serde_json::from_str::<BrowserAssessmentContext>(context_json) {
+        Ok(context) => assessment_context(context),
+        Err(_) => {
+            return serialize_response(BrowserResponse::failure(error(
+                BrowserErrorCode::InvalidContext,
+                "Clue could not use the optional context answers.",
+            )));
+        }
+    };
+    serialize_response(analyze_for_browser_with_context(input, &context))
+}
+
 /// WebAssembly entry point. Browser runtime execution is not covered by native tests.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_name = analyzeUrl)]
@@ -225,7 +355,13 @@ pub fn analyze_url_wasm(input: &str) -> String {
     analyze_for_browser_json(input)
 }
 
-fn browser_report(report: &ConsumerReport) -> BrowserReport {
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_name = assessUrl)]
+pub fn assess_url_wasm(input: &str, context_json: &str) -> String {
+    assess_for_browser_json(input, context_json)
+}
+
+fn browser_report(report: &ConsumerReport, assessment: &LinkAssessment) -> BrowserReport {
     let observations = report
         .observations()
         .iter()
@@ -267,7 +403,97 @@ fn browser_report(report: &ConsumerReport) -> BrowserReport {
             status: completeness_status_identifier(report.completeness().status()).to_string(),
             stages,
         },
+        assessment: browser_assessment(assessment),
     }
+}
+
+fn browser_assessment(assessment: &LinkAssessment) -> BrowserAssessment {
+    BrowserAssessment {
+        contract_version: assessment.contract_version(),
+        category_identifier: assessment.category().identifier().to_string(),
+        category_title: assessment.category().title().to_string(),
+        category_explanation: assessment.category().explanation().to_string(),
+        action_identifier: assessment.recommended_action().identifier().to_string(),
+        action_title: assessment.recommended_action().title().to_string(),
+        reasons: assessment
+            .reasons()
+            .iter()
+            .map(|reason| BrowserAssessmentReason {
+                identifier: reason.identifier().to_string(),
+                source: reason.source().identifier().to_string(),
+                explanation: reason.explanation().to_string(),
+            })
+            .collect(),
+        limitations: assessment
+            .limitations()
+            .iter()
+            .map(|limitation| BrowserAssessmentLimitation {
+                identifier: limitation.identifier().to_string(),
+                explanation: limitation.explanation().to_string(),
+            })
+            .collect(),
+        context_changed_recommendation: assessment.context_changed_recommendation(),
+    }
+}
+
+fn assessment_context(context: BrowserAssessmentContext) -> AssessmentContext {
+    let mut result = AssessmentContext::new();
+    if let Some(source) = context.source {
+        result = result.with_source(match source {
+            BrowserLinkSource::Email => LinkSource::Email,
+            BrowserLinkSource::Message => LinkSource::Message,
+            BrowserLinkSource::SocialMedia => LinkSource::SocialMedia,
+            BrowserLinkSource::WebsiteOrSearch => LinkSource::WebsiteOrSearch,
+            BrowserLinkSource::QrCode => LinkSource::QrCode,
+            BrowserLinkSource::OtherOrUnknown => LinkSource::OtherOrUnknown,
+        });
+    }
+    if let Some(purpose) = context.claimed_purpose {
+        result = result.with_claimed_purpose(match purpose {
+            BrowserClaimedPurpose::Document => ClaimedPurpose::Document,
+            BrowserClaimedPurpose::AccountSignInOrVerification => {
+                ClaimedPurpose::AccountSignInOrVerification
+            }
+            BrowserClaimedPurpose::DeliveryOrShipping => ClaimedPurpose::DeliveryOrShipping,
+            BrowserClaimedPurpose::PaymentOrFinancialRequest => {
+                ClaimedPurpose::PaymentOrFinancialRequest
+            }
+            BrowserClaimedPurpose::OrdinaryContent => ClaimedPurpose::OrdinaryContent,
+            BrowserClaimedPurpose::SoftwareDownloadOrInstall => {
+                ClaimedPurpose::SoftwareDownloadOrInstall
+            }
+            BrowserClaimedPurpose::OtherOrUnknown => ClaimedPurpose::OtherOrUnknown,
+        });
+    }
+    if let Some(expected) = context.expected_contact {
+        result = result.with_expected_contact(match expected {
+            BrowserExpectedContact::Expected => ExpectedContact::Expected,
+            BrowserExpectedContact::Unexpected => ExpectedContact::Unexpected,
+            BrowserExpectedContact::Unsure => ExpectedContact::Unsure,
+        });
+    }
+    if let Some(action) = context.requested_action {
+        result = result.with_requested_action(match action {
+            BrowserRequestedAction::ViewContent => RequestedAction::ViewContent,
+            BrowserRequestedAction::EnterAccountCredentials => {
+                RequestedAction::EnterAccountCredentials
+            }
+            BrowserRequestedAction::ProvidePersonalInformation => {
+                RequestedAction::ProvidePersonalInformation
+            }
+            BrowserRequestedAction::MakePayment => RequestedAction::MakePayment,
+            BrowserRequestedAction::DownloadOrInstallSoftware => {
+                RequestedAction::DownloadOrInstallSoftware
+            }
+            BrowserRequestedAction::ContactSomeone => RequestedAction::ContactSomeone,
+            BrowserRequestedAction::OtherOrUnknown => RequestedAction::OtherOrUnknown,
+        });
+    }
+    result
+}
+
+fn serialize_response(response: BrowserResponse) -> String {
+    serde_json::to_string(&response).unwrap_or_else(|_| fixed_serialization_failure().to_string())
 }
 
 fn completeness_status_identifier(status: ConsumerCompletenessStatus) -> &'static str {
@@ -317,7 +543,7 @@ const fn error(code: BrowserErrorCode, message: &'static str) -> BrowserError {
 
 const fn fixed_serialization_failure() -> &'static str {
     concat!(
-        r#"{"wire_schema_version":1,"report":null,"error":{"code":"analysis-failure","#,
+        r#"{"wire_schema_version":2,"report":null,"error":{"code":"analysis-failure","#,
         r#""message":"LinkSleuth could not prepare the local analysis result."}}"#
     )
 }
@@ -355,8 +581,9 @@ mod tests {
 
         let json = analyze_for_browser_json(input);
         let value: Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(value["wire_schema_version"], 1);
+        assert_eq!(value["wire_schema_version"], 2);
         assert_eq!(value["report"]["consumer_schema_version"], 1);
+        assert_eq!(value["report"]["assessment"]["contract_version"], 1);
         assert!(value["report"].get("hostname").is_none());
         assert!(value["report"].get("evidence").is_none());
         for sensitive in [
@@ -449,7 +676,6 @@ mod tests {
         assert!(!json.to_lowercase().contains("url is safe"));
         assert!(!json.contains("ordinary.example"));
         assert!(!json.contains("products"));
-        assert!(!json.contains("category"));
         assert!(!json.contains("books"));
     }
 
@@ -530,6 +756,64 @@ mod tests {
                 !source.contains(forbidden),
                 "network API found: {forbidden}"
             );
+        }
+    }
+
+    #[test]
+    fn context_reassessment_changes_guidance_without_changing_observations() {
+        let input = "https://top.example/?target=https%3A%2F%2Fdestination.example%2Fcontent";
+        let preliminary: Value = serde_json::from_str(&analyze_for_browser_json(input)).unwrap();
+        let contextual: Value = serde_json::from_str(&assess_for_browser_json(
+            input,
+            r#"{"source":"email","claimed_purpose":"ordinary-content","expected_contact":"expected","requested_action":"enter-account-credentials"}"#,
+        ))
+        .unwrap();
+
+        assert_eq!(
+            preliminary["report"]["assessment"]["category_identifier"],
+            "proceed-with-caution"
+        );
+        assert_eq!(
+            preliminary["report"]["assessment"]["action_identifier"],
+            "use-known-website-instead"
+        );
+        assert_eq!(
+            contextual["report"]["assessment"]["category_identifier"],
+            "proceed-with-caution"
+        );
+        assert_eq!(
+            contextual["report"]["assessment"]["action_identifier"],
+            "avoid-sensitive-action-until-verified"
+        );
+        assert_eq!(
+            preliminary["report"]["observations"],
+            contextual["report"]["observations"]
+        );
+        assert_eq!(
+            preliminary["report"]["completeness"],
+            contextual["report"]["completeness"]
+        );
+        assert_eq!(
+            contextual["report"]["assessment"]["context_changed_recommendation"],
+            true
+        );
+    }
+
+    #[test]
+    fn invalid_or_oversized_context_returns_a_fixed_private_error() {
+        for context in [
+            r#"{"source":"private-secret-value"}"#.to_string(),
+            "x".repeat(MAX_ASSESSMENT_CONTEXT_BYTES + 1),
+        ] {
+            let json = assess_for_browser_json("https://private.example/path", &context);
+            let value: Value = serde_json::from_str(&json).unwrap();
+            assert_eq!(value["error"]["code"], "invalid-context");
+            assert_eq!(
+                value["error"]["message"],
+                "Clue could not use the optional context answers."
+            );
+            assert!(!json.contains("private.example"));
+            assert!(!json.contains("private-secret-value"));
         }
     }
 }

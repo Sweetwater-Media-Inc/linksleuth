@@ -39,6 +39,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -257,6 +258,7 @@ label {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid #9babb9;
@@ -268,6 +270,11 @@ textarea {
 input {
   min-height: 3.25rem;
   padding: 0.75rem 0.95rem;
+}
+
+select {
+  min-height: 3rem;
+  padding: 0.65rem 2.25rem 0.65rem 0.8rem;
 }
 
 input::placeholder {
@@ -383,6 +390,196 @@ footer p {
   flex-direction: column;
   gap: 1rem;
   margin-top: 1.75rem;
+}
+
+.assessment {
+  margin-top: 1.6rem;
+  padding: clamp(1.2rem, 3vw, 1.65rem);
+  border: 1px solid #a9bfd3;
+  border-left: 0.35rem solid var(--accent);
+  border-radius: 0.9rem;
+  background: #f7fafc;
+}
+
+.assessment[data-category="proceed-with-caution"],
+.assessment[data-category="strong-warning-signs"],
+.assessment[data-category="unable-to-assess-reliably"] {
+  border-left-color: var(--limited);
+  background: #fffaf1;
+}
+
+.assessment h3 {
+  margin-bottom: 1rem;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+}
+
+.assessment-action {
+  padding: 1rem;
+  border-radius: 0.7rem;
+  background: #fff;
+}
+
+.assessment-action p,
+.assessment-explanation,
+.assessment-change {
+  margin: 0;
+}
+
+.assessment-action-label {
+  margin-bottom: 0.3rem !important;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+#assessment-action {
+  color: var(--ink);
+  font-size: 1.08rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.assessment-explanation,
+.assessment-change {
+  margin-top: 0.9rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.assessment-change {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+.assessment-reasons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.assessment-reason-group {
+  padding: 1rem;
+  border: 1px solid #d5dfe7;
+  border-radius: 0.7rem;
+  background: #fff;
+}
+
+.assessment-reason-group h4,
+.assessment-reason-group ul,
+.assessment-limitations ul {
+  margin-bottom: 0;
+}
+
+.assessment-reason-group ul,
+.assessment-limitations ul {
+  padding-left: 1.2rem;
+}
+
+.assessment-reason-group li,
+.assessment-limitations li {
+  margin-top: 0.45rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.assessment-limitations {
+  margin-top: 1rem;
+}
+
+.assessment-limitations summary {
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.context-panel {
+  margin-top: 1rem;
+  padding: 1.2rem;
+  border: 1px solid #d5dfe7;
+  border-radius: 0.8rem;
+  background: #fbfcfd;
+}
+
+.context-intro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.context-intro h3,
+.context-intro p {
+  margin-bottom: 0;
+}
+
+.context-intro p,
+.context-status {
+  margin-top: 0.35rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.context-questions {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dce4eb;
+}
+
+.context-step {
+  max-width: 42rem;
+  margin-top: 1rem;
+}
+
+.context-step:first-child {
+  margin-top: 0;
+}
+
+.context-step select {
+  width: 100%;
+}
+
+.context-step .context-next {
+  margin-top: 0.45rem;
+}
+
+.context-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.context-status {
+  min-height: 1.5rem;
+  margin-bottom: 0;
+}
+
+.supporting-heading {
+  margin-top: 2rem;
+}
+
+.supporting-heading h3 {
+  margin-bottom: 0;
+}
+
+.summary-context-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+  color: var(--muted);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.summary-context-option input {
+  flex: none;
+  width: 1.1rem;
+  min-height: 1.1rem;
+  margin-top: 0.15rem;
 }
 
 .observation-card,
@@ -607,6 +804,7 @@ footer p {
 
   .input-row,
   .observations,
+  .assessment-reasons,
   .stage-grid {
     grid-template-columns: 1fr;
   }
@@ -620,6 +818,11 @@ footer p {
   .completeness-intro,
   .summary-action,
   .summary-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .context-intro {
     align-items: stretch;
     flex-direction: column;
   }

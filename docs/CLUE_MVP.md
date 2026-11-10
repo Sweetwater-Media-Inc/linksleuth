@@ -47,6 +47,11 @@ assistive-technology review remain future work.
 8. The user may generate a privacy-reduced summary that excludes raw evidence
    and the hostname unless a separate disclosure control is explicitly enabled.
 
+Milestone 6.18 places a deterministic preliminary assessment before supporting
+observations. Optional progressive context questions follow the preliminary
+result and never block analysis. Assessment rules live in the independent Rust
+assessment crate, not in JavaScript or the URL-analysis engine.
+
 ## User stories
 
 - As a nontechnical user, I can paste a URL and understand what LinkSleuth
@@ -136,6 +141,19 @@ The compound parser does not scan arbitrary substrings, repeatedly interpret
 HTML, or analyze fragments as destinations. The synthetic motivating example
 therefore recognizes the complete inner protocol-relative value while leaving
 the outer `hostname//path` spelling explicitly ambiguous.
+
+## Milestone 6.18 assessment experience
+
+The result order is assessment, recommended action, fixed reasons, optional
+context questions, supporting observations, analysis coverage, and summary
+review. Categories remain qualified and never use green safe styling, threat
+scores, or confirmed malicious/legitimate language.
+
+Context questions use finite native controls for source, claimed purpose,
+expected contact, and requested action. They can be answered partially,
+revised, cleared, or skipped. Reassessment reruns locally and does not mutate
+the underlying observations. Context-derived summary reasons require a separate
+explicit checkbox during review.
 
 ### Expandable technical details
 

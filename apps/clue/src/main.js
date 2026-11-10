@@ -1,4 +1,4 @@
-import initWasm, { analyzeUrl } from "./generated/linksleuth_wasm.js";
+import initWasm, { analyzeUrl, assessUrl } from "./generated/linksleuth_wasm.js";
 import {
   ContractError,
   validateBrowserResponse,
@@ -9,6 +9,7 @@ const INITIALIZATION_ERROR =
 const CONTRACT_ERROR =
   "Clue received an incompatible local analysis response. Refresh the page or update the application.";
 const ANALYSIS_ERROR = "Clue could not complete local analysis. Try again.";
+const CONTEXT_ERROR = "Clue could not update the assessment from those answers.";
 
 const form = requiredElement("analysis-form");
 const input = requiredElement("url-input");
@@ -25,6 +26,26 @@ const coverageLimitations = requiredElement("coverage-limitations");
 const coverageDetails = requiredElement("coverage-details");
 const wireVersion = requiredElement("wire-version");
 const consumerVersion = requiredElement("consumer-version");
+const assessmentVersion = requiredElement("assessment-version");
+const assessmentPanel = requiredElement("assessment");
+const assessmentStatusLabel = requiredElement("assessment-status-label");
+const assessmentHeading = requiredElement("assessment-heading");
+const assessmentAction = requiredElement("assessment-action");
+const assessmentExplanation = requiredElement("assessment-explanation");
+const assessmentChange = requiredElement("assessment-change");
+const assessmentReasons = requiredElement("assessment-reasons");
+const assessmentLimitations = requiredElement("assessment-limitations");
+const openContextButton = requiredElement("open-context");
+const contextQuestions = requiredElement("context-questions");
+const contextSource = requiredElement("context-source");
+const contextPurpose = requiredElement("context-purpose");
+const contextExpected = requiredElement("context-expected");
+const contextAction = requiredElement("context-action");
+const clearContextButton = requiredElement("clear-context");
+const closeContextButton = requiredElement("close-context");
+const contextStatus = requiredElement("context-status");
+const contextSteps = [...document.querySelectorAll(".context-step")];
+const contextNextButtons = [...document.querySelectorAll(".context-next")];
 const reviewSummaryButton = requiredElement("review-summary");
 const summaryReview = requiredElement("summary-review");
 const summaryHeading = requiredElement("summary-heading");
@@ -32,14 +53,27 @@ const summaryText = requiredElement("summary-text");
 const copySummaryButton = requiredElement("copy-summary");
 const closeSummaryButton = requiredElement("close-summary");
 const copyStatus = requiredElement("copy-status");
+const includeContextSummary = requiredElement("include-context-summary");
 
 let currentReport = null;
+let preliminaryReport = null;
+let contextRevision = 0;
 const analyzerReady = initializeAnalyzer();
 
 form.addEventListener("submit", handleAnalysis);
 reviewSummaryButton.addEventListener("click", openSummaryReview);
 copySummaryButton.addEventListener("click", copySummary);
 closeSummaryButton.addEventListener("click", closeSummaryReview);
+openContextButton.addEventListener("click", openContextQuestions);
+clearContextButton.addEventListener("click", clearContext);
+closeContextButton.addEventListener("click", closeContextQuestions);
+includeContextSummary.addEventListener("change", refreshSummary);
+for (const control of [contextSource, contextPurpose, contextExpected, contextAction]) {
+  control.addEventListener("change", updateAssessmentFromContext);
+}
+contextNextButtons.forEach((button, index) => {
+  button.addEventListener("click", () => revealContextStep(index + 1));
+});
 
 async function initializeAnalyzer() {
   try {
@@ -92,6 +126,7 @@ async function handleAnalysis(event) {
     }
 
     currentReport = parsed;
+    preliminaryReport = parsed;
     renderReport(parsed);
   } finally {
     analyzeButton.disabled = false;
@@ -103,9 +138,11 @@ function renderReport(response) {
   const report = response.report;
   wireVersion.textContent = String(response.wire_schema_version);
   consumerVersion.textContent = String(report.consumer_schema_version);
+  assessmentVersion.textContent = String(report.assessment.contract_version);
   results.dataset.wireSchemaVersion = String(response.wire_schema_version);
   results.dataset.consumerSchemaVersion = String(report.consumer_schema_version);
 
+  renderAssessment(report.assessment, false);
   renderObservations(report.observations);
   renderCompleteness(report.completeness);
 
@@ -117,6 +154,52 @@ function renderReport(response) {
       ? "Analysis complete. One structural observation was found."
       : `Analysis complete. ${count} structural observations were found.`;
   resultsHeading.focus();
+}
+
+function renderAssessment(assessment, hasContext) {
+  assessmentPanel.dataset.category = assessment.category_identifier;
+  assessmentStatusLabel.textContent = hasContext
+    ? "Assessment with optional context"
+    : "Preliminary assessment";
+  assessmentHeading.textContent = assessment.category_title;
+  assessmentAction.textContent = assessment.action_title;
+  assessmentExplanation.textContent = assessment.category_explanation;
+  assessmentChange.hidden = !hasContext;
+  if (hasContext) {
+    assessmentChange.textContent = assessment.context_changed_recommendation
+      ? "Your answers changed Clue's category or recommended action."
+      : "Your answers did not change the category or recommended action.";
+  }
+
+  assessmentReasons.replaceChildren();
+  const groups = [
+    ["url-analysis", "From the URL analysis"],
+    ["user-context", "From your optional answers"],
+  ];
+  for (const [source, title] of groups) {
+    const reasons = assessment.reasons.filter((reason) => reason.source === source);
+    if (reasons.length === 0) {
+      continue;
+    }
+    const group = createElement("section", "assessment-reason-group");
+    const heading = createElement("h4");
+    heading.textContent = title;
+    const list = createElement("ul");
+    for (const reason of reasons) {
+      const item = createElement("li");
+      item.textContent = reason.explanation;
+      list.append(item);
+    }
+    group.append(heading, list);
+    assessmentReasons.append(group);
+  }
+
+  assessmentLimitations.replaceChildren();
+  for (const limitation of assessment.limitations) {
+    const item = createElement("li");
+    item.textContent = limitation.explanation;
+    assessmentLimitations.append(item);
+  }
 }
 
 function renderObservations(observations) {
@@ -199,11 +282,18 @@ function openSummaryReview() {
   if (currentReport === null) {
     return;
   }
-  summaryText.value = buildSummary(currentReport);
+  includeContextSummary.checked = false;
+  summaryText.value = buildSummary(currentReport, false);
   summaryReview.hidden = false;
   reviewSummaryButton.setAttribute("aria-expanded", "true");
   copyStatus.textContent = "";
   summaryHeading.focus();
+}
+
+function refreshSummary() {
+  if (currentReport !== null && !summaryReview.hidden) {
+    summaryText.value = buildSummary(currentReport, includeContextSummary.checked);
+  }
 }
 
 async function copySummary() {
@@ -225,16 +315,43 @@ function closeSummaryReview() {
   reviewSummaryButton.focus();
 }
 
-function buildSummary(response) {
+function buildSummary(response, includeContextReasons) {
   const report = response.report;
   const lines = [
     "Clue privacy-reduced summary",
     "============================",
     `Browser wire schema: ${response.wire_schema_version}`,
     `Consumer report schema: ${report.consumer_schema_version}`,
+    `Assessment contract: ${report.assessment.contract_version}`,
     "",
-    "Observations",
+    "Assessment",
+    report.assessment.category_title,
+    report.assessment.category_explanation,
+    `Recommended action: ${report.assessment.action_title}`,
+    "",
+    "Assessment reasons",
   ];
+  const assessmentReasons = report.assessment.reasons.filter(
+    (reason) => reason.source === "url-analysis" || includeContextReasons,
+  );
+  if (assessmentReasons.length === 0) {
+    lines.push("No supporting warning reasons were produced.");
+  } else {
+    for (const reason of assessmentReasons) {
+      lines.push(`- ${reason.explanation}`);
+    }
+  }
+  if (
+    !includeContextReasons &&
+    report.assessment.reasons.some((reason) => reason.source === "user-context")
+  ) {
+    lines.push("- Optional user-context reasons were excluded from this summary.");
+  }
+  lines.push("", "Assessment limitations");
+  for (const limitation of report.assessment.limitations) {
+    lines.push(`- ${limitation.explanation}`);
+  }
+  lines.push("", "Observations");
 
   if (report.observations.length === 0) {
     lines.push(
@@ -266,8 +383,89 @@ function buildSummary(response) {
   return lines.join("\n");
 }
 
+function openContextQuestions() {
+  contextQuestions.hidden = false;
+  openContextButton.setAttribute("aria-expanded", "true");
+  contextSource.focus();
+}
+
+function closeContextQuestions() {
+  contextQuestions.hidden = true;
+  openContextButton.setAttribute("aria-expanded", "false");
+  openContextButton.focus();
+}
+
+function revealContextStep(index) {
+  const step = contextSteps[index];
+  if (!step) {
+    return;
+  }
+  step.hidden = false;
+  step.querySelector("select")?.focus();
+}
+
+async function updateAssessmentFromContext() {
+  if (preliminaryReport === null) {
+    return;
+  }
+  const revision = ++contextRevision;
+  contextStatus.textContent = "Updating the assessment locally…";
+  const context = assessmentContext();
+
+  try {
+    const parsed = JSON.parse(assessUrl(input.value, JSON.stringify(context)));
+    validateBrowserResponse(parsed);
+    if (revision !== contextRevision) {
+      return;
+    }
+    if (parsed.error !== null) {
+      contextStatus.textContent = CONTEXT_ERROR;
+      return;
+    }
+    currentReport = parsed;
+    const hasContext = Object.keys(context).length > 0;
+    renderAssessment(parsed.report.assessment, hasContext);
+    contextStatus.textContent = parsed.report.assessment.context_changed_recommendation
+      ? "Assessment updated. Your answers changed the guidance."
+      : "Assessment updated. The guidance did not change.";
+    announcement.textContent = contextStatus.textContent;
+  } catch {
+    if (revision === contextRevision) {
+      contextStatus.textContent = CONTEXT_ERROR;
+    }
+  }
+}
+
+function assessmentContext() {
+  const entries = [
+    ["source", contextSource.value],
+    ["claimed_purpose", contextPurpose.value],
+    ["expected_contact", contextExpected.value],
+    ["requested_action", contextAction.value],
+  ];
+  return Object.fromEntries(entries.filter(([, value]) => value !== ""));
+}
+
+function clearContext() {
+  contextRevision += 1;
+  for (const control of [contextSource, contextPurpose, contextExpected, contextAction]) {
+    control.value = "";
+  }
+  contextSteps.forEach((step, index) => {
+    step.hidden = index !== 0;
+  });
+  if (preliminaryReport !== null) {
+    currentReport = preliminaryReport;
+    renderAssessment(preliminaryReport.report.assessment, false);
+  }
+  contextStatus.textContent = "Optional answers cleared. Showing the preliminary assessment.";
+  announcement.textContent = contextStatus.textContent;
+}
+
 function clearPreviousResult() {
   currentReport = null;
+  preliminaryReport = null;
+  contextRevision += 1;
   errorMessage.hidden = true;
   errorMessage.textContent = "";
   results.hidden = true;
@@ -280,6 +478,16 @@ function clearPreviousResult() {
   summaryText.value = "";
   copyStatus.textContent = "";
   reviewSummaryButton.setAttribute("aria-expanded", "false");
+  includeContextSummary.checked = false;
+  contextQuestions.hidden = true;
+  openContextButton.setAttribute("aria-expanded", "false");
+  contextStatus.textContent = "";
+  for (const control of [contextSource, contextPurpose, contextExpected, contextAction]) {
+    control.value = "";
+  }
+  contextSteps.forEach((step, index) => {
+    step.hidden = index !== 0;
+  });
 }
 
 function showError(message) {

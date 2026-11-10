@@ -1,5 +1,6 @@
-export const EXPECTED_WIRE_SCHEMA_VERSION = 1;
+export const EXPECTED_WIRE_SCHEMA_VERSION = 2;
 export const EXPECTED_CONSUMER_SCHEMA_VERSION = 1;
+export const EXPECTED_ASSESSMENT_CONTRACT_VERSION = 1;
 
 const OVERALL_STATUSES = new Set([
   "complete-within-supported-scope",
@@ -73,6 +74,42 @@ function validateReport(report) {
   }
 
   validateCompleteness(report.completeness);
+  validateAssessment(report.assessment);
+}
+
+function validateAssessment(assessment) {
+  assertRecord(assessment);
+  assertExactVersion(
+    assessment.contract_version,
+    EXPECTED_ASSESSMENT_CONTRACT_VERSION,
+  );
+  for (const field of [
+    "category_identifier",
+    "category_title",
+    "category_explanation",
+    "action_identifier",
+    "action_title",
+  ]) {
+    assertNonEmptyString(assessment[field]);
+  }
+  assertArray(assessment.reasons);
+  for (const reason of assessment.reasons) {
+    assertRecord(reason);
+    assertNonEmptyString(reason.identifier);
+    if (reason.source !== "url-analysis" && reason.source !== "user-context") {
+      throw new ContractError();
+    }
+    assertNonEmptyString(reason.explanation);
+  }
+  assertArray(assessment.limitations);
+  for (const limitation of assessment.limitations) {
+    assertRecord(limitation);
+    assertNonEmptyString(limitation.identifier);
+    assertNonEmptyString(limitation.explanation);
+  }
+  if (typeof assessment.context_changed_recommendation !== "boolean") {
+    throw new ContractError();
+  }
 }
 
 function validateCompleteness(completeness) {

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ContractError,
+  EXPECTED_ASSESSMENT_CONTRACT_VERSION,
   EXPECTED_CONSUMER_SCHEMA_VERSION,
   EXPECTED_WIRE_SCHEMA_VERSION,
   validateBrowserResponse,
@@ -36,6 +37,28 @@ function validResponse() {
           reasons: [],
         })),
       },
+      assessment: {
+        contract_version: EXPECTED_ASSESSMENT_CONTRACT_VERSION,
+        category_identifier: "proceed-with-caution",
+        category_title: "Proceed with caution",
+        category_explanation: "Fixed explanation.",
+        action_identifier: "verify-independently",
+        action_title: "Verify independently.",
+        reasons: [
+          {
+            identifier: "url.example-reason",
+            source: "url-analysis",
+            explanation: "Fixed reason.",
+          },
+        ],
+        limitations: [
+          {
+            identifier: "assessment.example-limitation",
+            explanation: "Fixed limitation.",
+          },
+        ],
+        context_changed_recommendation: false,
+      },
     },
     error: null,
   };
@@ -46,7 +69,7 @@ test("accepts the documented success and error envelopes", () => {
   assert.equal(validateBrowserResponse(success), success);
 
   const failure = {
-    wire_schema_version: 1,
+    wire_schema_version: 2,
     report: null,
     error: { code: "invalid-url", message: "Enter a complete HTTP or HTTPS URL." },
   };
@@ -55,12 +78,16 @@ test("accepts the documented success and error envelopes", () => {
 
 test("rejects unknown wire and consumer schema versions", () => {
   const unknownWire = validResponse();
-  unknownWire.wire_schema_version = 2;
+  unknownWire.wire_schema_version = 3;
   assert.throws(() => validateBrowserResponse(unknownWire), ContractError);
 
   const unknownConsumer = validResponse();
   unknownConsumer.report.consumer_schema_version = 2;
   assert.throws(() => validateBrowserResponse(unknownConsumer), ContractError);
+
+  const unknownAssessment = validResponse();
+  unknownAssessment.report.assessment.contract_version = 2;
+  assert.throws(() => validateBrowserResponse(unknownAssessment), ContractError);
 });
 
 test("rejects missing fields, evidence disclosure, and incomplete stage sets", () => {
@@ -75,4 +102,12 @@ test("rejects missing fields, evidence disclosure, and incomplete stage sets", (
   const missingStage = validResponse();
   missingStage.report.completeness.stages.pop();
   assert.throws(() => validateBrowserResponse(missingStage), ContractError);
+
+  const missingAssessment = validResponse();
+  delete missingAssessment.report.assessment;
+  assert.throws(() => validateBrowserResponse(missingAssessment), ContractError);
+
+  const rawContextSource = validResponse();
+  rawContextSource.report.assessment.reasons[0].source = "private-email-value";
+  assert.throws(() => validateBrowserResponse(rawContextSource), ContractError);
 });

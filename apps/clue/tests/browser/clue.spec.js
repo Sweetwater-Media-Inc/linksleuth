@@ -37,13 +37,14 @@ test("loads the actual WASM adapter and retains accepted schema versions outside
   await openClue(page);
   await analyze(page, SENSITIVE_URL);
 
-  await expect(page.getByRole("heading", { name: "What Clue observed" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Clue's assessment" })).toBeVisible();
   await expect(page.locator(".results-header")).not.toContainText("Wire 1");
   await expect(page.locator(".results-header")).not.toContainText("Report 1");
   await page.getByText("About this result").click();
-  await expect(page.locator(".result-about")).toContainText("browser contract 1");
+  await expect(page.locator(".result-about")).toContainText("browser contract 2");
   await expect(page.locator(".result-about")).toContainText("consumer report 1");
-  await expect(page.locator("#results")).toHaveAttribute("data-wire-schema-version", "1");
+  await expect(page.locator(".result-about")).toContainText("assessment contract 1");
+  await expect(page.locator("#results")).toHaveAttribute("data-wire-schema-version", "2");
   await expect(page.locator("#results")).toHaveAttribute(
     "data-consumer-schema-version",
     "1",
@@ -60,6 +61,10 @@ test("renders encoded destinations and performs no analysis-triggered requests",
   await expect(
     page.getByRole("heading", { name: "This link contains another web address" }),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Proceed with caution" })).toBeVisible();
+  await expect(page.locator("#assessment-action")).toHaveText(
+    "Use a known website or application instead of this link.",
+  );
   await expect(page.getByText("Observed once")).toBeVisible();
   const cardWidth = await page.locator(".observation-card").first().evaluate(
     (element) => element.getBoundingClientRect().width,
@@ -84,6 +89,12 @@ test("shows the explicit non-verdict state when there are no observations", asyn
     page.getByText("No supported structural observations were found."),
   ).toBeVisible();
   await expect(
+    page.getByRole("heading", { name: "No clear structural warning signs" }),
+  ).toBeVisible();
+  await expect(page.locator("#assessment")).toContainText(
+    "This does not establish that the website is trustworthy or safe.",
+  );
+  await expect(
     page.getByText(
       "This does not mean the link is safe. LinkSleuth only examines supported URL structures.",
     ),
@@ -98,6 +109,7 @@ test("keeps unsupported original-path analysis separate from completed stages", 
   await expect(
     page.getByText("Clue could not fully examine every supported structure in this link."),
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Unable to assess reliably" })).toBeVisible();
   const limitations = page.locator("#coverage-limitations");
   await expect(limitations).toContainText("Original path was not fully examined");
   await expect(limitations).toContainText(
@@ -151,6 +163,9 @@ test("privacy-reduced results and explicit copy workflow exclude raw URL evidenc
   await page.getByRole("button", { name: "Review summary" }).click();
   const summary = await page.getByLabel("Selectable summary text").inputValue();
   expect(summary).toContain("Clue privacy-reduced summary");
+  expect(summary).toContain("Assessment contract: 1");
+  expect(summary).toContain("Proceed with caution");
+  expect(summary).toContain("Recommended action:");
   expect(summary).toContain("This link contains another web address — observed once");
   expect(summary).toContain("This is structural analysis, not a security verdict.");
   expect(summary).toContain("not guaranteed anonymous");
@@ -218,6 +233,7 @@ test("explains the motivating compound structure without disclosing its evidence
   ]) {
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
   }
+  await expect(page.getByRole("heading", { name: "Proceed with caution" })).toBeVisible();
   await expect(page.locator("#coverage-limitations")).toContainText(
     "Destination traversal was not fully examined",
   );
@@ -233,9 +249,122 @@ test("explains the motivating compound structure without disclosing its evidence
   ]) {
     expect(resultText).not.toContain(sensitive);
   }
+  await page.getByRole("button", { name: "Answer optional questions" }).click();
+  await page.getByLabel("Where did the link come from?").selectOption("email");
+  await page.getByRole("button", { name: "Next question" }).first().click();
+  await page.getByLabel("What was the link supposed to be for?").selectOption("document");
+  await page.getByRole("button", { name: "Next question" }).nth(1).click();
+  await page
+    .getByLabel("Were you expecting this contact or request?")
+    .selectOption("unexpected");
+  await expect(page.getByRole("heading", { name: "Strong warning signs" })).toBeVisible();
+  await expect(page.locator("#assessment-limitations")).toContainText(
+    "User context cannot resolve the destination-like structure",
+  );
   await page.waitForTimeout(100);
   expect(network.externalRequests).toEqual([]);
   expect(network.requests.slice(assetRequestCount)).toEqual([]);
+});
+
+test("offers optional progressive context and updates guidance without changing URL evidence", async ({
+  page,
+}) => {
+  await openClue(page);
+  await analyze(page, SENSITIVE_URL);
+
+  const observationsBefore = await page.locator("#observations").textContent();
+  await expect(page.locator("#assessment-status-label")).toHaveText(
+    "Preliminary assessment",
+  );
+  await page.getByRole("button", { name: "Answer optional questions" }).click();
+  await expect(page.getByLabel("Where did the link come from?")).toBeFocused();
+
+  await page.getByLabel("Where did the link come from?").selectOption("email");
+  await expect(page.getByText("Assessment with optional context")).toBeVisible();
+  await expect(page.locator("#context-status")).toContainText(
+    "The guidance did not change.",
+  );
+
+  await page.getByRole("button", { name: "Next question" }).first().click();
+  await page.getByLabel("What was the link supposed to be for?").selectOption("document");
+  await page.getByRole("button", { name: "Next question" }).nth(1).click();
+  await page
+    .getByLabel("Were you expecting this contact or request?")
+    .selectOption("unexpected");
+  await page.getByRole("button", { name: "Next question" }).nth(2).click();
+  await page
+    .getByLabel("What did the message or page ask you to do?")
+    .selectOption("enter-account-credentials");
+
+  await expect(page.getByRole("heading", { name: "Strong warning signs" })).toBeVisible();
+  await expect(page.locator("#assessment-action")).toContainText(
+    "Do not enter sensitive information",
+  );
+  await expect(page.getByText("From your optional answers")).toBeVisible();
+  await expect(page.getByText("Your answers changed Clue's category or recommended action.")).toBeVisible();
+  await expect(page.locator("#observations")).toHaveText(observationsBefore);
+
+  await page
+    .getByLabel("Were you expecting this contact or request?")
+    .selectOption("expected");
+  await expect(page.getByRole("heading", { name: "Proceed with caution" })).toBeVisible();
+  await expect(page.locator("#assessment-action")).toContainText(
+    "Do not enter sensitive information",
+  );
+
+  await page.getByRole("button", { name: "Clear answers" }).click();
+  await expect(page.locator("#assessment-status-label")).toHaveText(
+    "Preliminary assessment",
+  );
+  await expect(page.locator("#assessment-action")).toHaveText(
+    "Use a known website or application instead of this link.",
+  );
+  await expect(page.getByLabel("Where did the link come from?")).toHaveValue("");
+  await expect(page.locator("#observations")).toHaveText(observationsBefore);
+});
+
+test("context reassessment and context editing trigger no network requests", async ({ page }) => {
+  const network = await openClue(page);
+  await analyze(page, SENSITIVE_URL);
+  const requestCount = network.requests.length;
+
+  await page.getByRole("button", { name: "Answer optional questions" }).click();
+  await page.getByLabel("Where did the link come from?").selectOption("message");
+  await page.getByRole("button", { name: "Next question" }).first().click();
+  await page.getByLabel("What was the link supposed to be for?").selectOption("payment-or-financial-request");
+  await page.waitForTimeout(100);
+
+  expect(network.externalRequests).toEqual([]);
+  expect(network.requests.slice(requestCount)).toEqual([]);
+});
+
+test("summary excludes optional context reasons until deliberate inclusion", async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://127.0.0.1:4173",
+  });
+  await openClue(page);
+  await analyze(page, "https://ordinary.example/account");
+  await page.getByRole("button", { name: "Answer optional questions" }).click();
+  await page.getByLabel("Where did the link come from?").selectOption("email");
+  await page.getByRole("button", { name: "Next question" }).first().click();
+  await page.getByLabel("What was the link supposed to be for?").selectOption("account-sign-in-or-verification");
+  await page.getByRole("button", { name: "Next question" }).nth(1).click();
+  await page.getByLabel("Were you expecting this contact or request?").selectOption("unexpected");
+
+  await page.getByRole("button", { name: "Review summary" }).click();
+  let summary = await page.getByLabel("Selectable summary text").inputValue();
+  expect(summary).toContain("Optional user-context reasons were excluded");
+  expect(summary).not.toContain("You reported that the contact or request was unexpected");
+
+  await page
+    .getByLabel("Include standardized context-derived reasons in this summary")
+    .check();
+  summary = await page.getByLabel("Selectable summary text").inputValue();
+  expect(summary).toContain("You reported that the contact or request was unexpected");
+  expect(summary).not.toContain("ordinary.example");
 });
 
 test("coverage details expand and collapse with the keyboard", async ({ page }) => {
@@ -254,9 +383,9 @@ test("coverage details expand and collapse with the keyboard", async ({ page }) 
 test("repeated analysis replaces observations and keeps result focus", async ({ page }) => {
   await openClue(page);
   await analyze(page, SENSITIVE_URL);
-  await expect(page.getByRole("heading", { name: "What Clue observed" })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Clue's assessment" })).toBeFocused();
   await analyze(page, "https://ordinary.example/products?category=books");
-  await expect(page.getByRole("heading", { name: "What Clue observed" })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Clue's assessment" })).toBeFocused();
   await expect(
     page.getByRole("heading", { name: "This link contains another web address" }),
   ).toHaveCount(0);

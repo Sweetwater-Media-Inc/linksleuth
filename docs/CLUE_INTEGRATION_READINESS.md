@@ -96,7 +96,8 @@ These are architectural separations, not defects in the reusable core.
 - `wasm-bindgen 0.2.130` packages the release adapter for `web` output.
 - Vite imports and initializes the generated bindings and WASM binary.
 - Chromium executes `analyzeUrl(input)` through the actual adapter.
-- Runtime validation accepts browser wire schema 1 and consumer schema 1 and
+- Runtime validation accepts browser wire schema 2, consumer schema 1, and
+  assessment contract 1, and
   rejects unknown or incomplete contracts.
 - Playwright exercises observations, no-observation output, incomplete stages,
   fixed errors, keyboard interaction, summary review/copy, and mobile layout.
@@ -133,7 +134,7 @@ The adapter:
 - Always uses default `ConsumerReportOptions`.
 - Maps the report to a small browser model rather than serializing
   `AnalysisReport` or arbitrary consumer internals.
-- Returns a JSON envelope with browser wire schema version 1 and the independent
+- Returns a JSON envelope with browser wire schema version 2 and the independent
   consumer schema version.
 - Includes fixed observations, occurrence counts, empty evidence-reference
   lists, completeness stages, and fixed reasons.
@@ -152,7 +153,7 @@ Consumer-contract changes continue to follow the core schema version.
 
 ### Milestone 6.17 compatibility decision
 
-Consumer schema 1 and browser wire schema 1 remain unchanged. The JSON shape,
+For Milestone 6.17, consumer schema 1 and browser wire schema 1 remained unchanged. The JSON shape,
 privacy boundary, required fields, and error contract did not change; new
 analysis results use the existing extensible observation and completeness
 collections. Stable identifiers for existing observations are unchanged.
@@ -189,6 +190,23 @@ allowlisted inner parameters and never performs substring searching.
 These dependencies are confined to the adapter. A future frontend packaging
 milestone may add tooling around `wasm-bindgen`, but it should not move browser
 dependencies into `linksleuth-core`.
+
+### Milestone 6.18 assessment integration
+
+`linksleuth-assessment` is a platform-neutral workspace crate that depends only
+on the public core consumer interface. It contains no browser, DOM, storage,
+filesystem, network, or serialization dependency. The WASM adapter owns the
+small context JSON boundary and maps it to typed assessment enums.
+
+Browser wire schema advances from 1 to 2 because every successful response now
+requires an assessment object. Consumer schema stays at 1; its report shape and
+semantics are unchanged. Assessment contract version 1 is independent of both.
+The adapter's `assessUrl` export reruns passive analysis locally with a bounded
+typed context rather than retaining sensitive hidden global session state.
+
+See [CLUE_ASSESSMENT.md](CLUE_ASSESSMENT.md) for rules, context, privacy, and
+resource bounds, and [FUTURE_INTELLIGENCE.md](FUTURE_INTELLIGENCE.md) for
+strictly future opt-in intelligence and isolated active-investigation planning.
 
 ## Local-first privacy boundary
 

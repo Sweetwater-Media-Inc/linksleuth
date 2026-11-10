@@ -14,6 +14,11 @@ identifiers and schema badges, uses full-width observation rows, and keeps the
 four technical coverage stages in an accessible **What Clue examined**
 disclosure. Encountered limitations remain visible without expanding it.
 
+Milestone 6.18 adds an immediate deterministic assessment and actionable
+recommendation before observations. A short optional progressive context flow
+can update that guidance locally. Answers are finite categories, remain in page
+memory, are never persisted or transmitted, and can be revised or cleared.
+
 ## Tool versions
 
 The checked-in lockfiles and build script currently target:
@@ -110,17 +115,17 @@ npm run test:browser
 
 ## Browser contract
 
-Clue accepts only browser wire schema version 1 and consumer report schema
-version 1. Runtime validation checks success/error envelope shape,
+Clue accepts only browser wire schema version 2, consumer report schema version
+1, and assessment contract version 1. Runtime validation checks success/error envelope shape,
 privacy-reduced disclosure, observations, occurrence counts, all four
 completeness stages, fixed reasons, and the absence of evidence references.
 
 An unknown version or malformed response produces a fixed compatibility error.
 The raw response is never rendered as a fallback.
 
-Milestone 6.17 retains both schema versions because it adds observation values
-through the existing collections without changing the wire shape or disclosure
-contract. Version information remains available under **About this result**.
+Wire schema 2 adds the required privacy-reduced assessment object. Consumer
+schema 1 remains unchanged. Version information remains available under
+**About this result**.
 
 ## Privacy boundary
 
@@ -132,6 +137,10 @@ contract. Version information remains available under **About this result**.
   decoded payload, or detailed evidence.
 - Summary text is derived only from the validated privacy-reduced response and
   is copied only after separate Review and Copy actions.
+- Context-derived reasons are omitted from summaries unless the user explicitly
+  enables their inclusion during review.
+- Context uses bounded structured choices only and is not persisted, logged, or
+  transmitted.
 - Report categories and counts remain metadata; the summary is not guaranteed
   anonymous.
 - Detailed evidence disclosure is intentionally unavailable.
