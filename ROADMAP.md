@@ -68,6 +68,8 @@ This is a living plan, not a promise of release dates. Completed items describe 
 
 ## Development documentation
 
+- [x] Document Clue's actual Chromium/WASM prototype, browser test boundary and remaining deployment gaps (Milestone 6.16).
+
 - [x] Add `docs/CLUE_MVP.md` and `docs/CLUE_INTEGRATION_READINESS.md`, including the confirmed WASM compilation boundary and remaining browser tasks.
 
 - [x] Document Milestone 6.14 consumer schema, disclosure boundary, stage completeness and corpus-based quality metrics.
@@ -93,12 +95,16 @@ This is a living plan, not a promise of release dates. Completed items describe 
 ## Future: Clue companion web interface
 
 - [x] Compile the reusable core and browser adapter for `wasm32-unknown-unknown` (compilation only; browser execution remains unverified).
-- [ ] Build a minimal static Clue prototype and exercise the WASM output in an actual browser.
-- [ ] Instrument browser-runtime tests to confirm analysis does not request submitted or discovered destinations.
-- [ ] Build a simple accessible interface to paste and inspect links.
-- [ ] Prefer local processing so submitted URLs remain on the user's device.
-- [ ] Show understandable observations with optional technical evidence details.
-- [ ] Offer redacted, shareable reports.
+- [x] Build a responsive static Clue prototype with actual WASM packaging and Chromium runtime analysis (Milestone 6.16).
+- [x] Instrument Chromium browser-runtime tests to confirm no analysis-triggered network requests in the tested local context.
+- [ ] Expand real browser tests to Firefox and WebKit, and verify local-first behaviour under a production hosting configuration.
+- [ ] Complete manual screen-reader/accessibility testing, maximum-size input performance checks, and production CSP validation.
+- [ ] Confirm remote Clue CI run on main.
+- [x] Build an initial accessible-by-design interface for URL input, observations, completeness and privacy-reduced summary; manual assistive-technology review remains pending.
+- [x] Analyze submitted URLs locally through real WASM in Chromium, with network-request assertions against analysis.
+- [x] Show plain-language structured observations and completeness using the privacy-reduced browser response.
+- [ ] Design and security-review explicit local technical-evidence disclosure before implementation.
+- [x] Offer a review-first privacy-reduced summary with an explicit copy action; counts/categories may reveal metadata.
 - [ ] Publish explicit privacy and security documentation.
 
 ## Longer-term possibilities
