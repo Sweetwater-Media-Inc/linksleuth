@@ -18,7 +18,7 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 ## Current reporting behaviour
 
 - The `linksleuth-wasm` adapter provides a deliberately narrower browser JSON contract than the Rust consumer API: it uses default privacy-reduced options, omits hostname and detailed evidence fields, and emits fixed input/analysis error messages without reflecting submitted URL strings. Wire schema version 1 is independent of the Rust consumer schema version.
-- The intended Clue page may load its own static assets, but analysis must not send submitted URLs, resolve analyzed hosts, fetch nested candidates, preload destinations, or log URL-bearing telemetry. Browser network instrumentation has **not** yet verified this invariant; current evidence is source/dependency review and target compilation.
+- The intended Clue page may load its own static assets, but analysis must not send submitted URLs, resolve analyzed hosts, fetch nested candidates, preload destinations, or log URL-bearing telemetry. Chromium browser request instrumentation now confirms zero analysis-triggered network requests in the tested local prototype, including no requests to synthetic submitted or nested destination hosts. This does not guarantee all browsers or future deployments behave identically.
 
 - The new `consumer::create_consumer_report()` is privacy-reduced by default. Hostname inclusion and detailed evidence disclosure are **independent explicit opt-ins**. Detailed evidence can contain submitted, normalized, decoded or nested URL strings and must be treated as sensitive. Stable evidence references alone do not constitute permission to disclose evidence values.
 - Consumer observations use fixed titles/explanations and stable identifiers; they are structural observations, not malicious/safe classifications. `Debug` output redacts opted-in hostname and evidence. The consumer report is not guaranteed anonymous or inherently safe to publish.
@@ -30,6 +30,9 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 - Nested discovery preserves raw submitted references, source parameter names, decoding history, ordered Base64/HTML transformation provenance, and parent relationships in the **detailed** analysis only. Duplicate occurrences are retained, but descendants of duplicate normalized references attach to the first traversed occurrence; no traversal confirms a redirect.
 - The CLI's `--shareable` mode is distinct from its detailed mode. `--shareable --include-hostname` reveals the hostname; it does not authorize raw URL, path, or token inclusion.
 - Command-line arguments may appear in shell history, process listings, terminals, or surrounding tooling even if CLI **output** is redacted. A safer input mechanism remains future work. Do not test with genuine secrets.
+
+- Clue's initial browser frontend validates both independent schema versions at runtime, renders report strings as text rather than HTML, does not persist submitted URLs or include them in errors, and requires separate review/copy actions for privacy-reduced summaries. Detailed evidence remains unavailable in the browser adapter.
+- Static assets can require network access when the app loads; the privacy test boundary is network traffic **caused by analyzing** a URL after initialization. Production CSP headers, Firefox/WebKit, deployed hosting and manual assistive-technology evaluation are still outstanding.
 
 ## Engineering and testing expectations
 
