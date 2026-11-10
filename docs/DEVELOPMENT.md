@@ -25,7 +25,8 @@ We develop in reviewed, meaningful batches. Feature scope and acceptance criteri
 
 - For the independent consumer example, run `cargo build -p linksleuth-consumer-app` and `cargo test -p linksleuth-consumer-app`; it should only use public core consumer APIs.
 - For the browser adapter, run `cargo test -p linksleuth-wasm`, `cargo check -p linksleuth-core --target wasm32-unknown-unknown`, `cargo check -p linksleuth-wasm --target wasm32-unknown-unknown`, and `cargo build -p linksleuth-wasm --target wasm32-unknown-unknown` when the target is installed. Target compilation must not be reported as browser-runtime validation.
-- Future Clue integration must validate wasm-bindgen packaging, both schema versions, safe DOM rendering, fixed error messages and browser network activity before claiming local-browser behavior.
+- Clue now packages WASM for the browser and tests actual Chromium execution with Playwright request interception; this confirms only the tested local browser environment. Maintain schema validation, safe DOM rendering, fixed errors, and zero analysis-triggered network requests as regression invariants. Cross-browser, deployment CSP and manual accessibility checks remain future gates.
+- From `apps/clue`, use `npm ci`, `npm run dev`, `npm run build`, and `npm test` with the matching Rust WASM target and wasm-bindgen CLI. `npm test` runs production build, contract/privacy checks and real-WASM Chromium tests. See [../apps/clue/README.md](../apps/clue/README.md) for pinned versions and first-time setup.
 - See [CLUE_MVP.md](CLUE_MVP.md) and [CLUE_INTEGRATION_READINESS.md](CLUE_INTEGRATION_READINESS.md).
 
 ## Required checks
