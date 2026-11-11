@@ -95,6 +95,17 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Verify initial and context-aware layouts at 390, 768, 1280 and 1920 pixels in local Chromium; reported 23 actual-WASM Chromium tests and no triggered analysis network requests.
 - [ ] Manually verify screen-reader behaviour and test browser engines beyond Chromium before public release.
 
+## Milestone 6.20: unified Clue and controlled destination evidence
+
+- [x] Align navigation, left-aligned hero, URL analyzer, results and footer to the same responsive 88rem outer container.
+- [x] Keep assessment/context side by side on desktop, with compact primary recommendation and full-width URL/context reasons below.
+- [x] Preserve the privacy-reduced default browser response and introduce separately invoked, local-only candidate-hostname and detailed-evidence disclosure levels.
+- [x] Render all revealed URL evidence as inert text, never a clickable link or preview; clear disclosed DOM nodes on hide and every new analysis.
+- [x] Keep credentials and literal fragments out of displayed candidate representations, warn before revealing detail that query parameters may contain sensitive data, and exclude disclosed evidence from reviewed/copied summaries.
+- [x] Independently version destination-disclosure contracts (core 1, browser 1) without changing default wire schema 2, consumer schema 1 or assessment contract 1.
+- [x] Verify local Chromium disclosure/privacy/layout behaviour (reported: 182 Rust tests, 8 contract/privacy tests and 29 actual-WASM browser tests; no analysis-triggered network requests).
+- [ ] Manually review hostname and detailed disclosures with privacy-safe synthetic examples, and perform accessibility, Firefox/WebKit and production CSP checks before launch.
+
 ## Development documentation
 
 - [x] Document Clue's actual Chromium/WASM prototype, browser test boundary and remaining deployment gaps (Milestone 6.16).
