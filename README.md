@@ -46,6 +46,12 @@ LinkSleuth is an open-source, privacy-first URL analysis engine written in Rust 
 
 **Limitations:** Normalization findings currently recognize encoded parent-directory patterns only, and some unusual original-path spellings remain unsupported. Nested destination discovery examines complete candidate references in supported query values, including one bounded secondary Base64 or HTML-reference decoding stage. Hostname-first interpretation is ASCII-only, context-restricted, and rejects ambiguous constructs; compound query parsing uses one deterministic interpretation with at most 16 inner parameters. Fragments are not searched for destinations. It does not extract arbitrary substrings, alternate secondary decoders, support every HTML entity, or verify any redirect. Privacy-reduced reporting is not a fully audited or anonymous export; counts and finding categories may reveal metadata. Embedded URLs are *possible destinations*, not verified redirects. The current engine does not resolve redirects, inspect webpage content, query reputation feeds, or determine whether a link is safe. The CLI currently displays raw URL information, which may include personal information or tokens; review output carefully before sharing it.
 
+### Clue destination evidence and unified layout (Milestone 6.20)
+
+Clue now aligns header navigation, hero, analyzer, results and footer to one responsive 88rem outer container. The desktop assessment and optional context questions remain side by side, with concise primary guidance and a full-width explanation of reasons beneath. Supporting observations stay expandable.
+
+**Potential destination evidence is opt-in.** The normal browser result stays privacy-reduced. Users must separately request candidate hostnames, then explicitly confirm before revealing detailed provenance and decoded candidate references. Neither disclosure navigates to or verifies a destination; evidence is inert text, not a link. Credentials and literal fragments are omitted from disclosed candidate representations, but **detailed query strings can still include sensitive tokens or identifiers**. Hiding a panel removes rendered nodes, not every copy in browser memory. Revealing evidence does not add it to the privacy-reduced copy/share summary. See [destination disclosure and threat model](docs/CLUE_DESTINATION_DISCLOSURE.md).
+
 ## Build and test
 
 Requires Git and a Rust toolchain supporting the Rust 2024 edition.
