@@ -34,6 +34,10 @@ We develop in reviewed, meaningful batches. Feature scope and acceptance criteri
 
 When changing Clue presentation, test initial and context-aware results using the real production WASM adapter. Verify the assessment/context desktop grid and stacked mobile reading order, native supporting-findings disclosure, important visible limitations, keyboard/focus/scroll continuity across context updates, summary privacy and zero analysis-triggered requests. Milestone 6.19 locally reported 23 actual-WASM Chromium tests (19 desktop and four mobile) across 390, 768, 1280 and 1920px visual inspection, alongside 176 Rust and five Node contract/privacy tests. Manual screen-reader testing and non-Chromium browser validation remain outstanding.
 
+### Destination disclosure regression requirements
+
+Maintain separate default-output and explicit-disclosure tests. Verify that normal `analyzeUrl` / assessment responses never contain candidate hostnames, full references, credentials or fragments; that `discloseDestinations(input, level)` exposes only its permitted fields; and that detailed evidence requires a distinct user confirmation. Test inert text rendering (no `href`/`src`/navigation), valid provenance, bounded output, fixed private errors, no leaks in the review/copy summary, removal of disclosed nodes on hide/new analysis and zero analysis/disclosure-triggered network requests in actual-WASM browser testing. Use only synthetic URLs with fabricated tokens and identifiers. Milestone 6.20 reported 182 passing Rust tests, 8 frontend contract/privacy tests and 29 actual-WASM Chromium tests; remote CI, Firefox/WebKit, deployed CSP and manual screen-reader status must be verified separately.
+
 ## Required checks
 
 Run from workspace root:
