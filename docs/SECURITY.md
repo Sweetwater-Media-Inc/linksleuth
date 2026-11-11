@@ -40,6 +40,12 @@ The input URL is untrusted and may contain credentials, private hostnames, user 
 
 Milestone 6.19 reorganizes Clue's results without changing URL evidence, assessment rules, browser contracts or network behaviour. Optional context appears alongside recommendations on desktop, while supporting observations are collapsed by default. Material uncertainty and incomplete-analysis limitations must remain visible even with technical findings collapsed. Expanded supporting findings must only render the fixed privacy-reduced data already returned by WASM; no source URLs, candidate destinations, raw context or hostname disclosure may be introduced by layout changes. The local Chromium suite reportedly observed zero analysis-triggered requests; this is not a guarantee for other browsers or production deployments.
 
+### Explicit destination disclosure boundary (Milestone 6.20)
+
+Normal Clue responses still exclude candidate hostnames and detailed evidence. A separate local `discloseDestinations(input, level)` API requires deliberate user actions for hostname-only and, separately, detailed disclosure. The two disclosure contracts are independently versioned at 1; ordinary browser schema 2, consumer schema 1 and assessment contract 1 remain unchanged. Disclosed candidates are displayed only as inert text, with no destination-linked `href`, `src`, previews, or network calls. Detailed representations omit URL credentials and literal fragments, **but query values can contain sensitive tokens**. Do not treat these outputs as safe to share.
+
+Hiding evidence removes rendered DOM content and resets the UI; it does not securely erase WASM or JavaScript memory, developer-tool records, browser extension observations or screenshots. Evidence disclosure must not implicitly change review/copy summaries. Local Chromium tests reportedly observed zero analysis, reassessment or disclosure-triggered requests after initial assets loaded, but Firefox/WebKit, manual assistive-technology review and production CSP remain unverified. See [CLUE_DESTINATION_DISCLOSURE.md](CLUE_DESTINATION_DISCLOSURE.md).
+
 ## Engineering and testing expectations
 
 - Use synthetic adversarial URLs with distinctive fake secrets for regression tests.
