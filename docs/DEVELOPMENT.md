@@ -38,6 +38,12 @@ When changing Clue presentation, test initial and context-aware results using th
 
 Maintain separate default-output and explicit-disclosure tests. Verify that normal `analyzeUrl` / assessment responses never contain candidate hostnames, full references, credentials or fragments; that `discloseDestinations(input, level)` exposes only its permitted fields; and that detailed evidence requires a distinct user confirmation. Test inert text rendering (no `href`/`src`/navigation), valid provenance, bounded output, fixed private errors, no leaks in the review/copy summary, removal of disclosed nodes on hide/new analysis and zero analysis/disclosure-triggered network requests in actual-WASM browser testing. Use only synthetic URLs with fabricated tokens and identifiers. Milestone 6.20 reported 182 passing Rust tests, 8 frontend contract/privacy tests and 29 actual-WASM Chromium tests; remote CI, Firefox/WebKit, deployed CSP and manual screen-reader status must be verified separately.
 
+### Assessment quality, browser and accessibility gates (Milestone 6.21)
+
+Maintain both the 62-case destination corpus and 65 assessment scenarios (29 established plus 36 quality cases). Report expected-result consistency separately from substantive rule quality and real-world phishing accuracy; no measured accuracy is established by synthetic fixtures. Test plain-language hostname disclosure while leaving developer provenance accessible in expandable details.
+
+For browser verification, run real packaged WASM in Chromium and Firefox, preserving zero analysis/reassessment/disclosure-triggered network requests. WebKit failed before application initialization on localhost HTTP in the reported local environment (also with a plain Python server); rerun in a known-good environment rather than recording it as a pass. Include automated axe testing of meaningful UI states and follow [CLUE_MANUAL_ACCESSIBILITY_CHECKLIST.md](CLUE_MANUAL_ACCESSIBILITY_CHECKLIST.md) for required manual assistive-technology evaluation. Use [CLUE_USABILITY_TESTING_PROTOCOL.md](CLUE_USABILITY_TESTING_PROTOCOL.md) for a supervised five-to-ten-person synthetic-data study; these gates and deployed CSP/privacy checks remain open. Latest reported tests: 185 Rust, eight frontend contract/privacy, 38 Chromium/mobile browser, and six axe states (the latter included in browser checks).
+
 ## Required checks
 
 Run from workspace root:
