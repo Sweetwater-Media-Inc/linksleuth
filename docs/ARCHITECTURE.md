@@ -36,6 +36,12 @@ LinkSleuth is a Rust 2024 workspace for **passive** HTTP/HTTPS URL inspection. T
 
 The browser app presents an action-first assessment and optional context inputs in a responsive desktop grid (approximately 55/45), with a bounded 88rem results container. At 60rem and below, panels stack in DOM reading order. The first two questions appear immediately and the remaining two are available on demand. Supporting URL observations are collapsed by default in a native disclosure, but important assessment limitations remain visible above it. No core Rust analysis, assessment rules, WASM interfaces or schema versions changed in this layout-only milestone. Reported local browser checks cover 390/768/1280/1920px viewports, keyboard/focus and network-request boundaries; manual assistive-technology and cross-browser verification are still open.
 
+### Controlled destination disclosure (Milestone 6.20)
+
+The ordinary Clue browser result remains privacy-reduced under browser wire schema 2. A separate, explicitly invoked WASM function `discloseDestinations(input, level)` repeats bounded passive analysis locally and returns a narrow, independently versioned destination-disclosure response (browser disclosure wire schema 1; core disclosure contract 1). At the hostname level it returns candidate identity, hostname, reference kind, nested/direct relationship, depth, parent identity and fixed ambiguity wording. A second, explicitly confirmed detailed level adds submitted/normalized candidate representation, source parameter and positions, ordered transformations and ambiguity positions. Credentials and literal fragments are removed from displayed candidate representations, while query values may remain sensitive. It never serializes the full internal report, fetches websites or asserts navigation. The existing consumer report schema 1 and assessment contract 1 are unchanged.
+
+The frontend renders disclosed evidence only through inert text and removes its nodes when hidden or when a new analysis begins. Hiding does not guarantee browser-memory erasure. Disclosures never change the privacy-reduced summary. The common responsive outer container is now 88rem for header, hero, analyzer, results and footer; detailed assessment reasons span below the primary 55/45 assessment/context layout. See [CLUE_DESTINATION_DISCLOSURE.md](CLUE_DESTINATION_DISCLOSURE.md) for the threat model.
+
 ## Important separations
 
 - **Parsing versus normalization:** parser-normalized paths must not replace original URL evidence.
