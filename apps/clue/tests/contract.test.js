@@ -5,8 +5,11 @@ import {
   ContractError,
   EXPECTED_ASSESSMENT_CONTRACT_VERSION,
   EXPECTED_CONSUMER_SCHEMA_VERSION,
+  EXPECTED_DESTINATION_DISCLOSURE_CONTRACT_VERSION,
+  EXPECTED_DESTINATION_DISCLOSURE_WIRE_SCHEMA_VERSION,
   EXPECTED_WIRE_SCHEMA_VERSION,
   validateBrowserResponse,
+  validateDestinationDisclosureResponse,
 } from "../src/contract.js";
 
 function validResponse() {
@@ -66,6 +69,41 @@ function validResponse() {
         ],
         context_changed_recommendation: false,
       },
+    },
+    error: null,
+  };
+}
+
+function validDisclosure(level = "hostnames") {
+  const candidate = {
+    identifier: "candidate-1",
+    hostname: "destination.example",
+    reference_kind: "absolute-https",
+    relationship: "direct",
+    depth: 0,
+    parent_candidate_identifier: null,
+  };
+  if (level === "detailed") {
+    candidate.detail = {
+      submitted_reference: "https://destination.example/path?token=fake",
+      normalized_reference: "https://destination.example/path?token=fake",
+      source_parameter: "target",
+      top_level_parameter_position: 1,
+      source_parameter_position: 1,
+      transformations: [
+        { identifier: "percent-decoding", explanation: "Applied one pass." },
+      ],
+    };
+  }
+  return {
+    destination_disclosure_wire_schema_version:
+      EXPECTED_DESTINATION_DISCLOSURE_WIRE_SCHEMA_VERSION,
+    disclosure: {
+      contract_version: EXPECTED_DESTINATION_DISCLOSURE_CONTRACT_VERSION,
+      level,
+      notice: "Possible destinations, not verified navigation.",
+      candidates: [candidate],
+      ambiguities: [],
     },
     error: null,
   };
@@ -134,4 +172,53 @@ test("rejects missing fields, evidence disclosure, and incomplete stage sets", (
     ...duplicateNextSteps.report.assessment.next_steps[0],
   });
   assert.throws(() => validateBrowserResponse(duplicateNextSteps), ContractError);
+});
+
+test("validates the separate hostname and detailed disclosure contracts", () => {
+  const hostnames = validDisclosure();
+  assert.equal(validateDestinationDisclosureResponse(hostnames, "hostnames"), hostnames);
+
+  const detailed = validDisclosure("detailed");
+  assert.equal(validateDestinationDisclosureResponse(detailed, "detailed"), detailed);
+
+  const failure = {
+    destination_disclosure_wire_schema_version: 1,
+    disclosure: null,
+    error: {
+      code: "invalid-disclosure-level",
+      message: "Clue could not use that destination disclosure level.",
+    },
+  };
+  assert.equal(validateDestinationDisclosureResponse(failure, "hostnames"), failure);
+});
+
+test("rejects over-disclosed, mismatched, and malformed destination responses", () => {
+  const hostnameWithDetails = validDisclosure();
+  hostnameWithDetails.disclosure.candidates[0].detail = {
+    submitted_reference: "private",
+  };
+  assert.throws(
+    () => validateDestinationDisclosureResponse(hostnameWithDetails, "hostnames"),
+    ContractError,
+  );
+
+  const mismatchedLevel = validDisclosure("detailed");
+  assert.throws(
+    () => validateDestinationDisclosureResponse(mismatchedLevel, "hostnames"),
+    ContractError,
+  );
+
+  const unknownVersion = validDisclosure();
+  unknownVersion.destination_disclosure_wire_schema_version = 2;
+  assert.throws(
+    () => validateDestinationDisclosureResponse(unknownVersion, "hostnames"),
+    ContractError,
+  );
+
+  const malformedNesting = validDisclosure();
+  malformedNesting.disclosure.candidates[0].relationship = "nested";
+  assert.throws(
+    () => validateDestinationDisclosureResponse(malformedNesting, "hostnames"),
+    ContractError,
+  );
 });

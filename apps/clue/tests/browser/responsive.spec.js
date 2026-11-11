@@ -60,7 +60,7 @@ test("uses a single readable column at the 768px tablet width", async ({ page })
   await expectNoHorizontalOverflow(page);
 });
 
-test("keeps the results balanced and bounded at 1920px", async ({ page }) => {
+test("keeps every major section aligned and bounded at 1920px", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto("/");
   await expect(page.getByText("Local analyzer ready")).toBeVisible();
@@ -76,9 +76,38 @@ test("keeps the results balanced and bounded at 1920px", async ({ page }) => {
     contextBox: document.querySelector(".context-panel").getBoundingClientRect().toJSON(),
   }));
   expect(resultsBox.width).toBeLessThanOrEqual(1408);
-  expect(resultsBox.width).toBeGreaterThan(analyzerBox.width);
+  expect(Math.abs(resultsBox.width - analyzerBox.width)).toBeLessThan(2);
   expect(Math.abs(assessmentBox.y - contextBox.y)).toBeLessThan(2);
   expect(contextBox.x).toBeGreaterThan(assessmentBox.x + assessmentBox.width);
+  const boundaries = await page.evaluate(() =>
+    [".header-inner", ".intro", ".analyzer-panel", "#results", "footer"].map(
+      (selector) => {
+        const box = document.querySelector(selector).getBoundingClientRect();
+        return { selector, left: box.left, right: box.right };
+      },
+    ),
+  );
+  for (const boundary of boundaries.slice(1)) {
+    expect(Math.abs(boundary.left - boundaries[0].left), boundary.selector).toBeLessThan(2);
+    expect(Math.abs(boundary.right - boundaries[0].right), boundary.selector).toBeLessThan(2);
+  }
+  await expectNoHorizontalOverflow(page);
+});
+
+test("wraps long disclosed evidence safely at mobile width", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByText("Local analyzer ready")).toBeVisible();
+  const longToken = "fabricated-token-".repeat(120);
+  const candidate = encodeURIComponent(
+    `https://destination.example/private?token=${longToken}#private-fragment`,
+  );
+  await analyze(page, `https://mobile.example/?target=${candidate}`);
+  await page.getByRole("button", { name: "Reveal destination hostnames" }).click();
+  await page.getByRole("button", { name: "Reveal detailed evidence" }).click();
+
+  await expect(page.locator("#destination-details")).toContainText("fabricated-token");
+  await expect(page.locator("#destination-details")).not.toContainText("private-fragment");
   await expectNoHorizontalOverflow(page);
 });
 

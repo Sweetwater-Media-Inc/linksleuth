@@ -119,19 +119,12 @@
               <strong id="assessment-heading"></strong>
             </p>
             <p id="assessment-explanation" class="assessment-explanation"></p>
-            <p class="assessment-evidence-sufficiency">
-              <strong>What the evidence supports:</strong>
-              <span id="assessment-category-explanation"></span>
-            </p>
+            <p id="assessment-category-explanation" class="assessment-category-explanation"></p>
             <section class="assessment-next-steps" aria-labelledby="next-steps-heading">
               <h4 id="next-steps-heading">What you should do</h4>
               <ul id="assessment-next-steps"></ul>
             </section>
             <p id="assessment-change" class="assessment-change" hidden></p>
-            <section class="assessment-reason-section" aria-labelledby="assessment-reasons-heading">
-              <h4 id="assessment-reasons-heading">Why Clue is concerned</h4>
-              <div id="assessment-reasons" class="assessment-reasons"></div>
-            </section>
             <section class="assessment-limitations" aria-labelledby="assessment-limitations-heading">
               <h4 id="assessment-limitations-heading">Limits of this assessment</h4>
               <ul id="assessment-limitations"></ul>
@@ -208,6 +201,64 @@
             </div>
           </section>
         </div>
+
+        <section class="assessment-reason-section" aria-labelledby="assessment-reasons-heading">
+          <p class="step-label">Assessment evidence</p>
+          <h3 id="assessment-reasons-heading">Why Clue is concerned</h3>
+          <div id="assessment-reasons" class="assessment-reasons"></div>
+        </section>
+
+        <section
+          id="destination-disclosure"
+          class="destination-disclosure"
+          aria-labelledby="destination-disclosure-heading"
+        >
+          <div class="destination-disclosure-intro">
+            <div>
+              <p class="step-label">Optional sensitive evidence</p>
+              <h3 id="destination-disclosure-heading">Potential destinations found</h3>
+              <p>
+                Clue can reveal addresses identified inside the link. They are
+                possible destinations, not verified websites the link will open.
+              </p>
+            </div>
+            <button
+              id="toggle-destination-hostnames"
+              class="secondary-button"
+              type="button"
+              aria-controls="destination-hostnames"
+              aria-expanded="false"
+            >
+              Reveal destination hostnames
+            </button>
+          </div>
+          <div id="destination-hostnames" class="destination-hostnames" hidden>
+            <p id="destination-hostname-notice" class="disclosure-notice"></p>
+            <div id="destination-hostname-list" class="destination-list"></div>
+            <div id="destination-ambiguities" class="destination-ambiguities"></div>
+            <div class="detailed-disclosure-control">
+              <div>
+                <h4>Need to inspect how Clue found them?</h4>
+                <p>
+                  Detailed information can contain private parameter names,
+                  tokens, or decoded link data. Review it carefully before
+                  sharing your screen or copying anything.
+                </p>
+              </div>
+              <button
+                id="toggle-destination-details"
+                class="sensitive-button"
+                type="button"
+                aria-controls="destination-details"
+                aria-expanded="false"
+              >
+                Reveal detailed evidence
+              </button>
+            </div>
+            <div id="destination-details" class="destination-details" hidden></div>
+          </div>
+          <p id="destination-disclosure-status" class="visually-hidden" role="status" aria-live="polite"></p>
+        </section>
 
         <details id="supporting-findings" class="supporting-findings">
           <summary>

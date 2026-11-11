@@ -73,6 +73,18 @@ test("places the assessment and visible context questions side by side on deskto
   expect(contextBox.x).toBeGreaterThan(assessmentBox.x + assessmentBox.width);
   expect(assessmentBox.width).toBeGreaterThan(contextBox.width);
 
+  const alignedEdges = await page.evaluate(() => {
+    const selectors = [".header-inner", ".intro", ".analyzer-panel", "#results", "footer"];
+    return selectors.map((selector) => {
+      const box = document.querySelector(selector).getBoundingClientRect();
+      return { selector, left: box.left, right: box.right };
+    });
+  });
+  for (const edge of alignedEdges.slice(1)) {
+    expect(Math.abs(edge.left - alignedEdges[0].left), edge.selector).toBeLessThan(2);
+    expect(Math.abs(edge.right - alignedEdges[0].right), edge.selector).toBeLessThan(2);
+  }
+
   await expect(page.getByLabel("Where did the link come from?")).toBeVisible();
   await expect(page.getByLabel("What was it supposed to be for?")).toBeVisible();
   await expect(page.getByRole("button", { name: "Show two more optional questions" })).toBeVisible();
@@ -87,6 +99,11 @@ test("places the assessment and visible context questions side by side on deskto
     };
   });
   expect(primaryViewportState).toEqual({ actionVisible: true, purposeVisible: true });
+
+  const reasonBox = await page.locator(".assessment-reason-section").boundingBox();
+  const gridBox = await page.locator(".results-primary-grid").boundingBox();
+  expect(Math.abs(reasonBox.x - gridBox.x)).toBeLessThan(2);
+  expect(Math.abs(reasonBox.width - gridBox.width)).toBeLessThan(2);
 });
 
 test("renders encoded destinations and performs no analysis-triggered requests", async ({
@@ -158,6 +175,10 @@ test("shows the explicit non-verdict state when there are no observations", asyn
     ),
   ).toBeVisible();
   await expect(page.locator("#results")).not.toContainText("Safe");
+  await page.getByRole("button", { name: "Reveal destination hostnames" }).click();
+  await expect(page.locator("#destination-hostname-list")).toContainText(
+    "couldn't identify a complete destination address",
+  );
 });
 
 test("keeps unsupported original-path analysis separate from completed stages", async ({ page }) => {
@@ -171,7 +192,7 @@ test("keeps unsupported original-path analysis separate from completed stages", 
     page.getByRole("heading", { name: "Clue cannot reliably assess this link." }),
   ).toBeVisible();
   await expect(page.locator("#assessment-heading")).toHaveText("Unable to assess reliably");
-  await expect(page.locator(".assessment-evidence-sufficiency")).toContainText(
+  await expect(page.locator(".assessment-category-explanation")).toContainText(
     "incomplete or unavailable",
   );
   await expect(page.locator("#assessment-limitations")).toBeVisible();
@@ -222,7 +243,6 @@ test("privacy-reduced results and explicit copy workflow exclude raw URL evidenc
     "private.example",
     "destination.example",
     "fake-secret-123",
-    "token",
     "/private/path",
   ]) {
     expect(resultsText).not.toContain(sensitive);
@@ -254,6 +274,128 @@ test("privacy-reduced results and explicit copy workflow exclude raw URL evidenc
   expect(clipboardText).toBe(summary);
 });
 
+test("reveals only hostname-level destination evidence after an explicit local action", async ({
+  page,
+}) => {
+  const network = await openClue(page);
+  await analyze(page, COMPOUND_EXAMPLE);
+  const requestCount = network.requests.length;
+
+  await expect(page.locator("#destination-hostnames")).toBeHidden();
+  await expect(page.locator("#destination-hostname-list")).toBeEmpty();
+  await expect(page.locator("#destination-details")).toBeEmpty();
+  const defaultText = await page.locator("#results").textContent();
+  for (const privateValue of [
+    "storage.example",
+    "tracking.example",
+    "fake-id",
+    "adurl",
+    "synthetic-fragment",
+  ]) {
+    expect(defaultText).not.toContain(privateValue);
+  }
+
+  const reveal = page.locator("#toggle-destination-hostnames");
+  await reveal.click();
+  await expect(reveal).toHaveAttribute("aria-expanded", "true");
+  await expect(reveal).toHaveText("Hide destination hostnames");
+  await expect(page.locator("#destination-hostname-list")).toContainText("storage.example");
+  await expect(page.locator("#destination-hostname-list")).toContainText(
+    "Protocol-relative reference; no scheme was verified",
+  );
+  await expect(page.locator("#destination-ambiguities")).toContainText(
+    "couldn't identify it confidently",
+  );
+  const hostnameText = await page.locator("#destination-hostnames").textContent();
+  for (const privateValue of ["tracking.example", "fake-id", "adurl", "synthetic-fragment"]) {
+    expect(hostnameText).not.toContain(privateValue);
+  }
+  await expect(page.locator("#destination-details")).toBeHidden();
+  await expect(page.locator("#destination-details")).toBeEmpty();
+  await expect(page.locator("#destination-hostnames a")).toHaveCount(0);
+  await expect(page.locator("#destination-hostnames [href], #destination-hostnames [src]")).toHaveCount(0);
+  await page.waitForTimeout(100);
+  expect(network.externalRequests).toEqual([]);
+  expect(network.requests.slice(requestCount)).toEqual([]);
+});
+
+test("requires a second action for detailed evidence and removes sensitive nodes when hidden", async ({
+  page,
+}) => {
+  const url =
+    "https://outer.example/?email=fake.person%40example.test&target=" +
+    "https%3A%2F%2Fdestination.example.%2Fprivate%3Ftoken%3Dfake-token%23private-fragment";
+  await openClue(page);
+  await analyze(page, url);
+
+  await page.getByRole("button", { name: "Reveal destination hostnames" }).click();
+  await expect(page.locator("#destination-hostname-list")).toContainText(
+    "destination.example.",
+  );
+  await expect(page.locator("#destination-hostnames")).not.toContainText("fake-token");
+  await expect(page.locator("#destination-hostnames")).not.toContainText("fake.person");
+  await expect(page.locator("#destination-details")).toBeEmpty();
+
+  const detailButton = page.locator("#toggle-destination-details");
+  await detailButton.click();
+  await expect(detailButton).toHaveAttribute("aria-expanded", "true");
+  await expect(page.locator("#destination-details")).toContainText("fake-token");
+  await expect(page.locator("#destination-details")).toContainText("Source parameter");
+  await expect(page.locator("#destination-details")).toContainText("target");
+  await expect(page.locator("#destination-details")).toContainText(
+    "Classified submitted representation (credentials and fragment omitted)",
+  );
+  await expect(page.locator("#destination-details")).not.toContainText("private-fragment");
+  await expect(page.locator("#destination-details a")).toHaveCount(0);
+  await expect(page.locator("#destination-details [href], #destination-details [src]")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Hide detailed evidence" }).click();
+  await expect(page.locator("#destination-details")).toBeHidden();
+  await expect(page.locator("#destination-details")).toBeEmpty();
+  await expect(page.locator("#results")).not.toContainText("fake-token");
+
+  await page.getByRole("button", { name: "Hide destination hostnames" }).click();
+  await expect(page.locator("#destination-hostnames")).toBeHidden();
+  await expect(page.locator("#destination-hostname-list")).toBeEmpty();
+  await expect(page.locator("#results")).not.toContainText("destination.example.");
+});
+
+test("disclosure never changes summaries and resets for a new analysis", async ({ page }) => {
+  await openClue(page);
+  await analyze(page, SENSITIVE_URL);
+  await page.getByRole("button", { name: "Reveal destination hostnames" }).click();
+  await page.getByRole("button", { name: "Reveal detailed evidence" }).click();
+  await expect(page.locator("#destination-details")).toContainText("destination.example");
+
+  await page.getByRole("button", { name: "Review summary" }).click();
+  const summary = await page.getByLabel("Selectable summary text").inputValue();
+  expect(summary).not.toContain("destination.example");
+  expect(summary).not.toContain("fake-secret-123");
+  await page.getByRole("button", { name: "Close summary" }).click();
+
+  await analyze(page, "https://ordinary.example/products?category=books");
+  await expect(page.getByRole("button", { name: "Reveal destination hostnames" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(page.locator("#destination-hostnames")).toBeHidden();
+  await expect(page.locator("#destination-hostname-list")).toBeEmpty();
+  await expect(page.locator("#destination-details")).toBeEmpty();
+  await expect(page.locator("#results")).not.toContainText("destination.example");
+});
+
+test("context reassessment preserves the closed disclosure boundary", async ({ page }) => {
+  await openClue(page);
+  await analyze(page, SENSITIVE_URL);
+  await page.getByLabel("Where did the link come from?").selectOption("email");
+  await page.getByLabel("What was it supposed to be for?").selectOption("document");
+
+  await expect(page.locator("#destination-hostnames")).toBeHidden();
+  await expect(page.locator("#destination-hostname-list")).toBeEmpty();
+  await expect(page.locator("#destination-details")).toBeEmpty();
+  await expect(page.locator("#results")).not.toContainText("destination.example");
+});
+
 test("supports keyboard submission and accessible summary controls", async ({ page }) => {
   await openClue(page);
   const input = page.getByLabel("URL to analyze");
@@ -261,6 +403,15 @@ test("supports keyboard submission and accessible summary controls", async ({ pa
     "https://keyboard.example/?target=https%3A%2F%2Fcandidate.example%2F",
   );
   await input.press("Enter");
+
+  const hostnameDisclosure = page.locator("#toggle-destination-hostnames");
+  await hostnameDisclosure.focus();
+  await page.keyboard.press("Enter");
+  await expect(hostnameDisclosure).toHaveAttribute("aria-expanded", "true");
+  const detailedDisclosure = page.locator("#toggle-destination-details");
+  await detailedDisclosure.focus();
+  await page.keyboard.press("Enter");
+  await expect(detailedDisclosure).toHaveAttribute("aria-expanded", "true");
 
   const findingsSummary = page.locator("#supporting-findings > summary");
   await findingsSummary.focus();

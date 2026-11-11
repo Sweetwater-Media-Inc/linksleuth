@@ -186,6 +186,29 @@ caution, incomplete, and neutral outcomes use distinct restrained accents in
 addition to explicit category text; no state is presented as a green safety
 approval.
 
+## Milestone 6.20 unified layout and destination evidence
+
+Header contents, hero, analyzer, results, summary review and footer share one
+bounded 88rem outer container. The hero's text measure remains narrower inside
+that aligned boundary. The analyzer now uses the same outer width as results.
+Assessment and context retain the approximately 55/45 desktop grid; detailed
+assessment reasons move below it into a full-width section, with URL and
+user-context sources kept distinct.
+
+Destination evidence remains absent from the initial browser response and DOM.
+The separate local `discloseDestinations` WASM export supports two explicit
+levels. Hostname disclosure includes only candidate hostname, classification,
+direct/nested provenance and fixed ambiguity descriptions. Detailed disclosure
+requires another action and adds credential- and fragment-stripped candidate representations,
+source positions and ordered bounded transformations. Neither level creates a
+link, preview, navigation action or copy path.
+
+Closing disclosure removes rendered nodes; new analysis resets both levels
+before processing the next input. Context reassessment never requests evidence.
+The privacy-reduced summary continues to derive only from the normal validated
+response. See [CLUE_DESTINATION_DISCLOSURE.md](CLUE_DESTINATION_DISCLOSURE.md)
+for the fields, lifecycle and threat model.
+
 ### Expandable technical details
 
 - Hidden by default.
@@ -197,8 +220,9 @@ approval.
 - Uses text rendering, never HTML interpretation of evidence.
 - Provides a clear action to hide and clear revealed evidence.
 
-The initial browser adapter does not expose detailed evidence. This section is
-the contract for a future opt-in extension, not an MVP implementation shortcut.
+Milestone 6.20 implements this contract through a separate, independently
+versioned destination-disclosure response. The default browser response remains
+privacy-reduced and unchanged.
 
 ### Privacy-reduced report or export
 

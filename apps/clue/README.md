@@ -31,6 +31,20 @@ Tablet and mobile widths stack the assessment first and context second.
 Supporting structural findings move into a collapsed native disclosure with a
 fixed observation count, while assessment limitations remain visible.
 
+Milestone 6.20 aligns the header, hero, analyzer, results, summary and footer to
+one bounded 88rem outer container while preserving narrower text measures. The
+primary assessment and context panels remain approximately 55/45 on desktop;
+assessment reasons now span the full width below them to avoid an imbalanced
+empty column.
+
+Potential destinations use a separate, explicit local disclosure flow. The
+normal result remains privacy-reduced. A first action requests only candidate
+hostnames, classifications and nesting provenance. A second action requests
+credential- and fragment-stripped candidate references, source positions and bounded
+transformations. Evidence is inert text, is never copied into the existing
+summary, and is removed from the DOM when hidden or when a new analysis starts.
+See [the disclosure threat model](../../docs/CLUE_DESTINATION_DISCLOSURE.md).
+
 ## Tool versions
 
 The checked-in lockfiles and build script currently target:
@@ -144,14 +158,22 @@ schema 1 remains unchanged. The final action-explanation and next-step fields
 are additive, so wire schema 2 and assessment contract 1 remain unchanged.
 Version information remains available under **About this result**.
 
+The separate `discloseDestinations` export uses destination-disclosure browser
+wire schema 1 and destination-disclosure contract 1. Hostname and detailed
+responses have distinct strictly validated shapes. This additive API does not
+change the normal browser response or its versions.
+
 ## Privacy boundary
 
 - The entered URL remains in the input element and in memory for the current
   page only.
 - It is not placed in Clue's page URL, storage, cookies, telemetry, logs, or
   analysis-triggered requests.
-- Results contain no original hostname, destination hostname, path, parameters,
-  decoded payload, or detailed evidence.
+- Default results contain no original hostname, destination hostname, path,
+  parameters, decoded payload, or detailed evidence.
+- Destination evidence enters JavaScript and the DOM only after the matching
+  explicit local disclosure action. Hiding removes rendered nodes but cannot
+  guarantee erasure from browser or WASM memory.
 - Summary text is derived only from the validated privacy-reduced response and
   is copied only after separate Review and Copy actions.
 - Context-derived reasons are omitted from summaries unless the user explicitly
@@ -160,7 +182,8 @@ Version information remains available under **About this result**.
   transmitted.
 - Report categories and counts remain metadata; the summary is not guaranteed
   anonymous.
-- Detailed evidence disclosure is intentionally unavailable.
+- Detailed evidence has no copy control and never enters the privacy-reduced
+  summary.
 
 The page includes a tested meta Content Security Policy suitable for the local
 static build. Production hosting should also send a reviewed CSP as an HTTP
@@ -170,8 +193,9 @@ prototype does not claim production hardening.
 ## Known limitations
 
 - Automated runtime coverage currently uses Chromium only.
-- There is no detailed-evidence interface, hostname disclosure, persistence, or
-  analysis history.
+- There is no persistence or analysis history. Explicit destination disclosure
+  is local and read-only; it is not secure-memory isolation from browser tools,
+  extensions, screenshots or the operating system.
 - Clipboard behavior depends on browser permission; a selected textarea is the
   fallback.
 - Browser tests verify local static assets and analysis network behavior, not a

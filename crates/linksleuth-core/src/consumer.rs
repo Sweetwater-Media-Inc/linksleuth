@@ -43,6 +43,12 @@ use crate::normalization::{
 /// Version of the consumer-report contract, independent of the crate version.
 pub const CONSUMER_REPORT_SCHEMA_VERSION: u32 = 1;
 
+/// Version of the explicit destination-disclosure contract.
+///
+/// This contract is independent of the privacy-reduced consumer report. It is
+/// created only after a caller selects a disclosure level.
+pub const DESTINATION_DISCLOSURE_SCHEMA_VERSION: u32 = 1;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConsumerReportOptions {
     include_hostname: bool,
@@ -390,6 +396,195 @@ pub enum ConsumerTransformation {
     },
 }
 
+/// Amount of destination evidence deliberately requested by a consumer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DestinationDisclosureLevel {
+    Hostnames,
+    Detailed,
+}
+
+impl DestinationDisclosureLevel {
+    pub const fn identifier(self) -> &'static str {
+        match self {
+            Self::Hostnames => "hostnames",
+            Self::Detailed => "detailed",
+        }
+    }
+}
+
+/// Detail available only for the explicit detailed disclosure level.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DestinationDisclosureDetail {
+    submitted_reference_without_credentials_or_fragment: String,
+    normalized_reference_without_credentials_or_fragment: String,
+    source_parameter: String,
+    top_level_parameter_position: usize,
+    source_parameter_position: usize,
+    transformations: Vec<ConsumerTransformation>,
+}
+
+impl DestinationDisclosureDetail {
+    pub fn submitted_reference_without_credentials_or_fragment(&self) -> &str {
+        &self.submitted_reference_without_credentials_or_fragment
+    }
+
+    pub fn normalized_reference_without_credentials_or_fragment(&self) -> &str {
+        &self.normalized_reference_without_credentials_or_fragment
+    }
+
+    pub fn source_parameter(&self) -> &str {
+        &self.source_parameter
+    }
+
+    pub const fn top_level_parameter_position(&self) -> usize {
+        self.top_level_parameter_position
+    }
+
+    pub const fn source_parameter_position(&self) -> usize {
+        self.source_parameter_position
+    }
+
+    pub fn transformations(&self) -> &[ConsumerTransformation] {
+        &self.transformations
+    }
+}
+
+impl fmt::Debug for DestinationDisclosureDetail {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("[REDACTED DESTINATION DETAIL]")
+    }
+}
+
+/// One supported destination candidate in source order.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DestinationDisclosureCandidate {
+    identifier: String,
+    destination_kind: ConsumerDestinationKind,
+    hostname: String,
+    depth: usize,
+    parent_candidate_identifier: Option<String>,
+    detail: Option<DestinationDisclosureDetail>,
+}
+
+impl DestinationDisclosureCandidate {
+    pub fn identifier(&self) -> &str {
+        &self.identifier
+    }
+
+    pub const fn destination_kind(&self) -> ConsumerDestinationKind {
+        self.destination_kind
+    }
+
+    pub fn hostname(&self) -> &str {
+        &self.hostname
+    }
+
+    pub const fn depth(&self) -> usize {
+        self.depth
+    }
+
+    pub fn parent_candidate_identifier(&self) -> Option<&str> {
+        self.parent_candidate_identifier.as_deref()
+    }
+
+    pub const fn detail(&self) -> Option<&DestinationDisclosureDetail> {
+        self.detail.as_ref()
+    }
+}
+
+impl fmt::Debug for DestinationDisclosureCandidate {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DestinationDisclosureCandidate")
+            .field("identifier", &self.identifier)
+            .field("destination_kind", &self.destination_kind)
+            .field("hostname", &"[REDACTED]")
+            .field("depth", &self.depth)
+            .field(
+                "parent_candidate_identifier",
+                &self.parent_candidate_identifier,
+            )
+            .field("has_detail", &self.detail.is_some())
+            .finish()
+    }
+}
+
+/// Supported destination-like material that was deliberately not classified.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DestinationDisclosureAmbiguity {
+    identifier: String,
+    explanation: String,
+    depth: usize,
+    parent_candidate_identifier: Option<String>,
+    top_level_parameter_position: Option<usize>,
+    source_parameter_position: Option<usize>,
+}
+
+impl DestinationDisclosureAmbiguity {
+    pub fn identifier(&self) -> &str {
+        &self.identifier
+    }
+
+    pub fn explanation(&self) -> &str {
+        &self.explanation
+    }
+
+    pub const fn depth(&self) -> usize {
+        self.depth
+    }
+
+    pub fn parent_candidate_identifier(&self) -> Option<&str> {
+        self.parent_candidate_identifier.as_deref()
+    }
+
+    pub const fn top_level_parameter_position(&self) -> Option<usize> {
+        self.top_level_parameter_position
+    }
+
+    pub const fn source_parameter_position(&self) -> Option<usize> {
+        self.source_parameter_position
+    }
+}
+
+/// Bounded, purpose-specific destination disclosure.
+#[derive(Clone, PartialEq, Eq)]
+pub struct DestinationDisclosure {
+    schema_version: u32,
+    level: DestinationDisclosureLevel,
+    candidates: Vec<DestinationDisclosureCandidate>,
+    ambiguities: Vec<DestinationDisclosureAmbiguity>,
+}
+
+impl DestinationDisclosure {
+    pub const fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+
+    pub const fn level(&self) -> DestinationDisclosureLevel {
+        self.level
+    }
+
+    pub fn candidates(&self) -> &[DestinationDisclosureCandidate] {
+        &self.candidates
+    }
+
+    pub fn ambiguities(&self) -> &[DestinationDisclosureAmbiguity] {
+        &self.ambiguities
+    }
+}
+
+impl fmt::Debug for DestinationDisclosure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("DestinationDisclosure")
+            .field("schema_version", &self.schema_version)
+            .field("level", &self.level)
+            .field("candidate_count", &self.candidates.len())
+            .field("ambiguity_count", &self.ambiguities.len())
+            .finish()
+    }
+}
+
 #[non_exhaustive]
 #[derive(Clone, PartialEq, Eq)]
 pub enum ConsumerEvidenceDetail {
@@ -540,6 +735,117 @@ pub fn create_consumer_report(
         observations,
         evidence,
     }
+}
+
+/// Creates an explicit, bounded destination disclosure in source order.
+///
+/// Hostname disclosure omits source names, candidate references, and
+/// transformations. Detailed disclosure adds only destination-specific
+/// evidence and removes literal fragment text from both candidate
+/// representations. Neither level contains the submitted top-level URL.
+pub fn create_destination_disclosure(
+    report: &AnalysisReport,
+    level: DestinationDisclosureLevel,
+) -> DestinationDisclosure {
+    let include_details = level == DestinationDisclosureLevel::Detailed;
+    let candidates = report
+        .destination_discovery
+        .candidates
+        .iter()
+        .enumerate()
+        .map(|(index, candidate)| DestinationDisclosureCandidate {
+            identifier: evidence_reference("candidate", index).identifier,
+            destination_kind: consumer_destination_kind(candidate.reference.kind),
+            hostname: candidate.reference.hostname.clone(),
+            depth: candidate.provenance.depth,
+            parent_candidate_identifier: candidate
+                .provenance
+                .parent_candidate_index
+                .map(|parent| evidence_reference("candidate", parent).identifier),
+            detail: include_details.then(|| DestinationDisclosureDetail {
+                submitted_reference_without_credentials_or_fragment: privacy_scoped_reference(
+                    &candidate.reference.submitted,
+                ),
+                normalized_reference_without_credentials_or_fragment: privacy_scoped_reference(
+                    &candidate.reference.normalized,
+                ),
+                source_parameter: candidate.provenance.source_parameter.clone(),
+                top_level_parameter_position: candidate.provenance.top_level_parameter_index + 1,
+                source_parameter_position: candidate.provenance.source_parameter_index + 1,
+                transformations: candidate
+                    .provenance
+                    .transformations
+                    .iter()
+                    .map(consumer_transformation)
+                    .collect(),
+            }),
+        })
+        .collect();
+
+    let ambiguities = report
+        .destination_discovery
+        .interpretation_issues
+        .iter()
+        .enumerate()
+        .map(|(index, issue)| DestinationDisclosureAmbiguity {
+            identifier: format!("ambiguity-{}", index + 1),
+            explanation: issue.kind.explanation().to_string(),
+            depth: issue.depth,
+            parent_candidate_identifier: issue
+                .parent_candidate_index
+                .map(|parent| evidence_reference("candidate", parent).identifier),
+            top_level_parameter_position: include_details
+                .then_some(issue.top_level_parameter_index + 1),
+            source_parameter_position: include_details.then_some(issue.source_parameter_index + 1),
+        })
+        .collect();
+
+    DestinationDisclosure {
+        schema_version: DESTINATION_DISCLOSURE_SCHEMA_VERSION,
+        level,
+        candidates,
+        ambiguities,
+    }
+}
+
+fn consumer_destination_kind(kind: DestinationReferenceKind) -> ConsumerDestinationKind {
+    match kind {
+        DestinationReferenceKind::Absolute {
+            scheme: DestinationScheme::Http,
+        } => ConsumerDestinationKind::AbsoluteHttp,
+        DestinationReferenceKind::Absolute {
+            scheme: DestinationScheme::Https,
+        } => ConsumerDestinationKind::AbsoluteHttps,
+        DestinationReferenceKind::ProtocolRelative => ConsumerDestinationKind::ProtocolRelative,
+        DestinationReferenceKind::HostnameFirst => ConsumerDestinationKind::HostnameFirst,
+    }
+}
+
+fn privacy_scoped_reference(reference: &str) -> String {
+    let without_fragment = reference
+        .split_once('#')
+        .map_or(reference, |(before, _)| before);
+    let authority_start = if without_fragment.starts_with("//") {
+        Some(2)
+    } else {
+        without_fragment.find("://").map(|separator| separator + 3)
+    };
+    let Some(authority_start) = authority_start else {
+        return without_fragment.to_string();
+    };
+    let authority_end = without_fragment[authority_start..]
+        .find(['/', '?'])
+        .map_or(without_fragment.len(), |offset| authority_start + offset);
+    let authority = &without_fragment[authority_start..authority_end];
+    let Some(user_info_end) = authority.rfind('@') else {
+        return without_fragment.to_string();
+    };
+
+    format!(
+        "{}{}",
+        &without_fragment[..authority_start],
+        &without_fragment[authority_start + user_info_end + 1..]
+    )
 }
 
 fn disclosure_class(options: ConsumerReportOptions) -> ConsumerDisclosureClass {
@@ -850,16 +1156,7 @@ fn build_evidence(report: &AnalysisReport) -> Vec<ConsumerEvidence> {
     }
 
     for (index, candidate) in report.destination_discovery.candidates.iter().enumerate() {
-        let destination_kind = match candidate.reference.kind {
-            DestinationReferenceKind::Absolute {
-                scheme: DestinationScheme::Http,
-            } => ConsumerDestinationKind::AbsoluteHttp,
-            DestinationReferenceKind::Absolute {
-                scheme: DestinationScheme::Https,
-            } => ConsumerDestinationKind::AbsoluteHttps,
-            DestinationReferenceKind::ProtocolRelative => ConsumerDestinationKind::ProtocolRelative,
-            DestinationReferenceKind::HostnameFirst => ConsumerDestinationKind::HostnameFirst,
-        };
+        let destination_kind = consumer_destination_kind(candidate.reference.kind);
         let parent_evidence_identifier = candidate
             .provenance
             .parent_candidate_index
@@ -1337,6 +1634,132 @@ mod tests {
         );
         assert_eq!(combined.hostname(), Some("private.example.com"));
         assert!(!combined.evidence().is_empty());
+    }
+
+    #[test]
+    fn destination_hostname_disclosure_is_narrow_and_redacted_in_debug() {
+        let analysis = analyze_url(concat!(
+            "https://private.example/?token=fake-secret&target=",
+            "https%3A%2F%2Fdestination.example.%2Fprivate%3Fcode%3Dfake-token%23private-fragment"
+        ))
+        .unwrap();
+        let disclosure =
+            create_destination_disclosure(&analysis, DestinationDisclosureLevel::Hostnames);
+
+        assert_eq!(
+            disclosure.schema_version(),
+            DESTINATION_DISCLOSURE_SCHEMA_VERSION
+        );
+        assert_eq!(disclosure.level(), DestinationDisclosureLevel::Hostnames);
+        assert_eq!(disclosure.candidates().len(), 1);
+        let candidate = &disclosure.candidates()[0];
+        assert_eq!(candidate.identifier(), "candidate-1");
+        assert_eq!(candidate.hostname(), "destination.example.");
+        assert_eq!(
+            candidate.destination_kind(),
+            ConsumerDestinationKind::AbsoluteHttps
+        );
+        assert_eq!(candidate.depth(), 0);
+        assert_eq!(candidate.parent_candidate_identifier(), None);
+        assert_eq!(candidate.detail(), None);
+
+        let debug = format!("{disclosure:?}:{candidate:?}");
+        for private in [
+            "private.example",
+            "destination.example",
+            "fake-secret",
+            "fake-token",
+            "private-fragment",
+            "target",
+        ] {
+            assert!(!debug.contains(private));
+        }
+    }
+
+    #[test]
+    fn detailed_destination_disclosure_is_scoped_and_removes_credentials_and_fragments() {
+        let analysis = analyze_url(concat!(
+            "https://top.example/?target=",
+            "https%3A%2F%2Ffake-user%3Afake-password%40destination.example%2Fprivate%3Fcode%3Dfake-token",
+            "%26next%3Dhttps%253A%252F%252Fnested.example%252Flanding%23private-fragment"
+        ))
+        .unwrap();
+        let disclosure =
+            create_destination_disclosure(&analysis, DestinationDisclosureLevel::Detailed);
+
+        assert_eq!(disclosure.level(), DestinationDisclosureLevel::Detailed);
+        assert_eq!(disclosure.candidates().len(), 2);
+        let direct = &disclosure.candidates()[0];
+        let detail = direct.detail().expect("detailed evidence");
+        assert_eq!(detail.source_parameter(), "target");
+        assert_eq!(detail.top_level_parameter_position(), 1);
+        assert_eq!(detail.source_parameter_position(), 1);
+        assert!(
+            detail
+                .submitted_reference_without_credentials_or_fragment()
+                .contains("fake-token")
+        );
+        assert!(
+            !detail
+                .submitted_reference_without_credentials_or_fragment()
+                .contains("private-fragment")
+        );
+        assert!(
+            !detail
+                .normalized_reference_without_credentials_or_fragment()
+                .contains("private-fragment")
+        );
+        assert!(
+            !detail
+                .submitted_reference_without_credentials_or_fragment()
+                .contains("fake-user")
+        );
+        assert!(
+            !detail
+                .normalized_reference_without_credentials_or_fragment()
+                .contains("fake-password")
+        );
+        assert!(!detail.transformations().is_empty());
+
+        let nested = &disclosure.candidates()[1];
+        assert_eq!(nested.depth(), 1);
+        assert_eq!(nested.parent_candidate_identifier(), Some("candidate-1"));
+        assert_eq!(nested.detail().unwrap().source_parameter(), "next");
+        assert!(!format!("{detail:?}").contains("fake-token"));
+    }
+
+    #[test]
+    fn destination_disclosure_keeps_ambiguity_separate_from_candidates() {
+        let analysis = analyze_url(concat!(
+            "https://social.example/?target=",
+            "tracking.example%2F%2Fpath%3Fadurl%3D%2F%2Fstorage.example%2Flanding"
+        ))
+        .unwrap();
+        let hostnames =
+            create_destination_disclosure(&analysis, DestinationDisclosureLevel::Hostnames);
+
+        assert_eq!(hostnames.candidates().len(), 1);
+        assert_eq!(hostnames.ambiguities().len(), 1);
+        let ambiguity = &hostnames.ambiguities()[0];
+        assert_eq!(ambiguity.identifier(), "ambiguity-1");
+        assert!(
+            ambiguity
+                .explanation()
+                .contains("not classified as a destination")
+        );
+        assert_eq!(ambiguity.top_level_parameter_position(), None);
+        assert_eq!(ambiguity.source_parameter_position(), None);
+
+        let detailed =
+            create_destination_disclosure(&analysis, DestinationDisclosureLevel::Detailed);
+        assert_eq!(
+            detailed.ambiguities()[0].top_level_parameter_position(),
+            Some(1)
+        );
+        assert_eq!(
+            detailed.ambiguities()[0].source_parameter_position(),
+            Some(1)
+        );
     }
 
     #[test]

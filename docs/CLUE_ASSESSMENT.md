@@ -145,3 +145,16 @@ keeps the first two questions visible, and updates guidance in place. Important
 typed limitations remain visible; structural observations are available in a
 separate collapsed disclosure. Categories, action rules, next-step selection,
 reason ordering, contract version 1, and all privacy semantics are unchanged.
+
+## Milestone 6.20 presentation and disclosure boundary
+
+Milestone 6.20 moves detailed assessment reasons below the primary
+assessment/context grid so they can use the full aligned page width. This does
+not change reason generation, ordering, attribution, limitations, categories,
+actions, next steps, context values or decision rules.
+
+Destination disclosure is independent of assessment. Reassessment continues to
+consume only the privacy-reduced consumer report and never requests or uses a
+candidate hostname, reference, source parameter or transformation. Opening or
+closing either destination-disclosure level cannot change a recommendation.
+Assessment contract version 1 remains unchanged.

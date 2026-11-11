@@ -27,3 +27,21 @@ test("page has no remote asset or navigation declarations", () => {
   assert.match(htmlSource, /Content-Security-Policy/u);
   assert.match(htmlSource, /connect-src 'self'/u);
 });
+
+test("destination evidence rendering cannot create navigation or embedded resources", () => {
+  for (const forbidden of [
+    'createElement("a"',
+    "createElement('a'",
+    ".href =",
+    ".src =",
+    'setAttribute("href"',
+    'setAttribute("src"',
+    "window.open",
+    "location.assign",
+    "location.replace",
+  ]) {
+    assert.equal(mainSource.includes(forbidden), false, `found ${forbidden}`);
+  }
+  assert.match(mainSource, /destination-reference/u);
+  assert.match(mainSource, /\.textContent = candidate\.detail\.submitted_reference/u);
+});

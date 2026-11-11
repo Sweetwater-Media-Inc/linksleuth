@@ -11,8 +11,9 @@ use linksleuth_assessment::{
 };
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::consumer::{
-    ConsumerCompletenessStatus, ConsumerReport, ConsumerReportOptions, ConsumerStageStatus,
-    create_consumer_report,
+    ConsumerCompletenessStatus, ConsumerDestinationKind, ConsumerReport, ConsumerReportOptions,
+    ConsumerStageStatus, ConsumerTransformation, DestinationDisclosure, DestinationDisclosureLevel,
+    create_consumer_report, create_destination_disclosure,
 };
 use linksleuth_core::parser::UrlError;
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,9 @@ use wasm_bindgen::prelude::*;
 
 /// Version of the browser JSON envelope, independent of the consumer schema.
 pub const BROWSER_WIRE_SCHEMA_VERSION: u32 = 2;
+
+/// Version of the separate explicit destination-disclosure browser response.
+pub const DESTINATION_DISCLOSURE_WIRE_SCHEMA_VERSION: u32 = 1;
 
 /// Maximum serialized optional context accepted from the browser.
 pub const MAX_ASSESSMENT_CONTEXT_BYTES: usize = 1024;
@@ -36,6 +40,7 @@ pub enum BrowserErrorCode {
     InputTooLong,
     TooManyQueryParameters,
     InvalidContext,
+    InvalidDisclosureLevel,
     AnalysisFailure,
 }
 
@@ -277,6 +282,99 @@ pub struct BrowserResponse {
     error: Option<BrowserError>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserDestinationTransformation {
+    identifier: &'static str,
+    explanation: String,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserDestinationDetail {
+    submitted_reference: String,
+    normalized_reference: String,
+    source_parameter: String,
+    top_level_parameter_position: usize,
+    source_parameter_position: usize,
+    transformations: Vec<BrowserDestinationTransformation>,
+}
+
+impl std::fmt::Debug for BrowserDestinationDetail {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("[REDACTED DESTINATION DETAIL]")
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserDestinationCandidate {
+    identifier: String,
+    hostname: String,
+    reference_kind: &'static str,
+    relationship: &'static str,
+    depth: usize,
+    parent_candidate_identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    detail: Option<BrowserDestinationDetail>,
+}
+
+impl std::fmt::Debug for BrowserDestinationCandidate {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BrowserDestinationCandidate")
+            .field("identifier", &self.identifier)
+            .field("hostname", &"[REDACTED]")
+            .field("reference_kind", &self.reference_kind)
+            .field("relationship", &self.relationship)
+            .field("depth", &self.depth)
+            .field(
+                "parent_candidate_identifier",
+                &self.parent_candidate_identifier,
+            )
+            .field("has_detail", &self.detail.is_some())
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserDestinationAmbiguity {
+    identifier: String,
+    explanation: String,
+    relationship: &'static str,
+    depth: usize,
+    parent_candidate_identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_level_parameter_position: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source_parameter_position: Option<usize>,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserDestinationDisclosure {
+    contract_version: u32,
+    level: &'static str,
+    notice: &'static str,
+    candidates: Vec<BrowserDestinationCandidate>,
+    ambiguities: Vec<BrowserDestinationAmbiguity>,
+}
+
+impl std::fmt::Debug for BrowserDestinationDisclosure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("BrowserDestinationDisclosure")
+            .field("contract_version", &self.contract_version)
+            .field("level", &self.level)
+            .field("candidate_count", &self.candidates.len())
+            .field("ambiguity_count", &self.ambiguities.len())
+            .finish()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BrowserDestinationDisclosureResponse {
+    destination_disclosure_wire_schema_version: u32,
+    disclosure: Option<BrowserDestinationDisclosure>,
+    error: Option<BrowserError>,
+}
+
 impl BrowserResponse {
     pub const fn wire_schema_version(&self) -> u32 {
         self.wire_schema_version
@@ -356,6 +454,61 @@ pub fn assess_for_browser_json(input: &str, context_json: &str) -> String {
     serialize_response(analyze_for_browser_with_context(input, &context))
 }
 
+/// Returns a separately versioned, explicitly requested destination disclosure.
+///
+/// The normal browser analysis response never calls this path. Each invocation
+/// reruns the same passive local analysis and returns only the selected bounded
+/// disclosure level.
+pub fn disclose_destinations_for_browser_json(input: &str, level: &str) -> String {
+    let level = match level {
+        "hostnames" => DestinationDisclosureLevel::Hostnames,
+        "detailed" => DestinationDisclosureLevel::Detailed,
+        _ => {
+            return serialize_destination_disclosure_response(
+                BrowserDestinationDisclosureResponse {
+                    destination_disclosure_wire_schema_version:
+                        DESTINATION_DISCLOSURE_WIRE_SCHEMA_VERSION,
+                    disclosure: None,
+                    error: Some(error(
+                        BrowserErrorCode::InvalidDisclosureLevel,
+                        "Clue could not use that destination disclosure level.",
+                    )),
+                },
+            );
+        }
+    };
+
+    let response = if input.trim().is_empty() {
+        BrowserDestinationDisclosureResponse {
+            destination_disclosure_wire_schema_version: DESTINATION_DISCLOSURE_WIRE_SCHEMA_VERSION,
+            disclosure: None,
+            error: Some(error(
+                BrowserErrorCode::EmptyInput,
+                "Enter a URL to analyze.",
+            )),
+        }
+    } else {
+        match analyze_url(input) {
+            Ok(analysis) => BrowserDestinationDisclosureResponse {
+                destination_disclosure_wire_schema_version:
+                    DESTINATION_DISCLOSURE_WIRE_SCHEMA_VERSION,
+                disclosure: Some(browser_destination_disclosure(
+                    &create_destination_disclosure(&analysis, level),
+                )),
+                error: None,
+            },
+            Err(source) => BrowserDestinationDisclosureResponse {
+                destination_disclosure_wire_schema_version:
+                    DESTINATION_DISCLOSURE_WIRE_SCHEMA_VERSION,
+                disclosure: None,
+                error: Some(browser_error(&source)),
+            },
+        }
+    };
+
+    serialize_destination_disclosure_response(response)
+}
+
 /// WebAssembly entry point. Browser runtime execution is not covered by native tests.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen(js_name = analyzeUrl)]
@@ -367,6 +520,128 @@ pub fn analyze_url_wasm(input: &str) -> String {
 #[wasm_bindgen(js_name = assessUrl)]
 pub fn assess_url_wasm(input: &str, context_json: &str) -> String {
     assess_for_browser_json(input, context_json)
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen(js_name = discloseDestinations)]
+pub fn disclose_destinations_wasm(input: &str, level: &str) -> String {
+    disclose_destinations_for_browser_json(input, level)
+}
+
+fn browser_destination_disclosure(
+    disclosure: &DestinationDisclosure,
+) -> BrowserDestinationDisclosure {
+    BrowserDestinationDisclosure {
+        contract_version: disclosure.schema_version(),
+        level: disclosure.level().identifier(),
+        notice: match disclosure.level() {
+            DestinationDisclosureLevel::Hostnames => {
+                "Clue identified addresses inside the link. These are possible destinations, not verified websites the link will open."
+            }
+            DestinationDisclosureLevel::Detailed => {
+                "Detailed information can include private data from the original link. These are possible destinations, not verified websites the link will open."
+            }
+        },
+        candidates: disclosure
+            .candidates()
+            .iter()
+            .map(|candidate| BrowserDestinationCandidate {
+                identifier: candidate.identifier().to_string(),
+                hostname: candidate.hostname().to_string(),
+                reference_kind: destination_kind_identifier(candidate.destination_kind()),
+                relationship: relationship_identifier(candidate.depth()),
+                depth: candidate.depth(),
+                parent_candidate_identifier: candidate
+                    .parent_candidate_identifier()
+                    .map(str::to_string),
+                detail: candidate.detail().map(|detail| BrowserDestinationDetail {
+                    submitted_reference: detail
+                        .submitted_reference_without_credentials_or_fragment()
+                        .to_string(),
+                    normalized_reference: detail
+                        .normalized_reference_without_credentials_or_fragment()
+                        .to_string(),
+                    source_parameter: detail.source_parameter().to_string(),
+                    top_level_parameter_position: detail.top_level_parameter_position(),
+                    source_parameter_position: detail.source_parameter_position(),
+                    transformations: detail
+                        .transformations()
+                        .iter()
+                        .map(browser_destination_transformation)
+                        .collect(),
+                }),
+            })
+            .collect(),
+        ambiguities: disclosure
+            .ambiguities()
+            .iter()
+            .map(|ambiguity| BrowserDestinationAmbiguity {
+                identifier: ambiguity.identifier().to_string(),
+                explanation: ambiguity.explanation().to_string(),
+                relationship: relationship_identifier(ambiguity.depth()),
+                depth: ambiguity.depth(),
+                parent_candidate_identifier: ambiguity
+                    .parent_candidate_identifier()
+                    .map(str::to_string),
+                top_level_parameter_position: ambiguity.top_level_parameter_position(),
+                source_parameter_position: ambiguity.source_parameter_position(),
+            })
+            .collect(),
+    }
+}
+
+fn destination_kind_identifier(kind: ConsumerDestinationKind) -> &'static str {
+    match kind {
+        ConsumerDestinationKind::AbsoluteHttp => "absolute-http",
+        ConsumerDestinationKind::AbsoluteHttps => "absolute-https",
+        ConsumerDestinationKind::ProtocolRelative => "protocol-relative",
+        ConsumerDestinationKind::HostnameFirst => "hostname-first",
+        _ => "unknown-future-kind",
+    }
+}
+
+const fn relationship_identifier(depth: usize) -> &'static str {
+    if depth == 0 { "direct" } else { "nested" }
+}
+
+fn browser_destination_transformation(
+    transformation: &ConsumerTransformation,
+) -> BrowserDestinationTransformation {
+    match transformation {
+        ConsumerTransformation::PercentDecoding { passes } => BrowserDestinationTransformation {
+            identifier: "percent-decoding",
+            explanation: format!("Applied {passes} bounded percent-decoding pass(es)."),
+        },
+        ConsumerTransformation::Base64Decoding {
+            alphabet_identifier,
+            padding_identifier,
+        } => BrowserDestinationTransformation {
+            identifier: "base64-decoding",
+            explanation: format!(
+                "Applied bounded Base64 decoding ({alphabet_identifier}, {padding_identifier})."
+            ),
+        },
+        ConsumerTransformation::HtmlCharacterReferenceDecoding { reference_count } => {
+            BrowserDestinationTransformation {
+                identifier: "html-character-reference-decoding",
+                explanation: format!(
+                    "Interpreted {reference_count} supported HTML character reference(s)."
+                ),
+            }
+        }
+        ConsumerTransformation::CompoundQueryExtraction { parameter_position } => {
+            BrowserDestinationTransformation {
+                identifier: "compound-query-extraction",
+                explanation: format!(
+                    "Extracted supported inner query parameter {parameter_position}."
+                ),
+            }
+        }
+        _ => BrowserDestinationTransformation {
+            identifier: "unknown-future-transformation",
+            explanation: "A supported transformation was applied.".to_string(),
+        },
+    }
 }
 
 fn browser_report(report: &ConsumerReport, assessment: &LinkAssessment) -> BrowserReport {
@@ -513,6 +788,13 @@ fn serialize_response(response: BrowserResponse) -> String {
     serde_json::to_string(&response).unwrap_or_else(|_| fixed_serialization_failure().to_string())
 }
 
+fn serialize_destination_disclosure_response(
+    response: BrowserDestinationDisclosureResponse,
+) -> String {
+    serde_json::to_string(&response)
+        .unwrap_or_else(|_| fixed_destination_serialization_failure().to_string())
+}
+
 fn completeness_status_identifier(status: ConsumerCompletenessStatus) -> &'static str {
     match status {
         ConsumerCompletenessStatus::CompleteWithinSupportedScope => {
@@ -562,6 +844,13 @@ const fn fixed_serialization_failure() -> &'static str {
     concat!(
         r#"{"wire_schema_version":2,"report":null,"error":{"code":"analysis-failure","#,
         r#""message":"LinkSleuth could not prepare the local analysis result."}}"#
+    )
+}
+
+const fn fixed_destination_serialization_failure() -> &'static str {
+    concat!(
+        r#"{"destination_disclosure_wire_schema_version":1,"disclosure":null,"error":{"code":"analysis-failure","#,
+        r#""message":"Clue could not prepare the local destination disclosure."}}"#
     )
 }
 
@@ -620,6 +909,110 @@ mod tests {
         ] {
             assert!(!json.contains(sensitive));
         }
+    }
+
+    #[test]
+    fn hostname_disclosure_contains_only_bounded_candidate_identity() {
+        let input = concat!(
+            "https://private.example/?email=fake.person%40example.test&target=",
+            "https%3A%2F%2Fdestination.example.%2Fprivate%3Ftoken%3Dfake-token%23private-fragment"
+        );
+        let json = disclose_destinations_for_browser_json(input, "hostnames");
+        let value: Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(value["destination_disclosure_wire_schema_version"], 1);
+        assert_eq!(value["disclosure"]["contract_version"], 1);
+        assert_eq!(value["disclosure"]["level"], "hostnames");
+        assert_eq!(
+            value["disclosure"]["candidates"].as_array().unwrap().len(),
+            1
+        );
+        let candidate = &value["disclosure"]["candidates"][0];
+        assert_eq!(candidate["identifier"], "candidate-1");
+        assert_eq!(candidate["hostname"], "destination.example.");
+        assert_eq!(candidate["reference_kind"], "absolute-https");
+        assert_eq!(candidate["relationship"], "direct");
+        assert!(candidate.get("detail").is_none());
+        for private in [
+            "private.example",
+            "fake.person",
+            "fake-token",
+            "private-fragment",
+            "source_parameter",
+            "submitted_reference",
+            "normalized_reference",
+        ] {
+            assert!(!json.contains(private));
+        }
+    }
+
+    #[test]
+    fn detailed_disclosure_is_separate_fragment_reduced_and_provenance_preserving() {
+        let input = concat!(
+            "https://top.example/?target=",
+            "https%3A%2F%2Ffake-user%3Afake-password%40destination.example%2Fprivate%3Ftoken%3Dfake-token",
+            "%26next%3D%252F%252Fnested.example%252Flanding%23private-fragment"
+        );
+        let default_json = analyze_for_browser_json(input);
+        let detailed_json = disclose_destinations_for_browser_json(input, "detailed");
+        let value: Value = serde_json::from_str(&detailed_json).unwrap();
+        let candidates = value["disclosure"]["candidates"].as_array().unwrap();
+
+        assert!(!default_json.contains("destination.example"));
+        assert!(!default_json.contains("nested.example"));
+        assert!(!default_json.contains("fake-token"));
+        assert_eq!(value["disclosure"]["level"], "detailed");
+        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates[0]["detail"]["source_parameter"], "target");
+        assert_eq!(candidates[0]["detail"]["top_level_parameter_position"], 1);
+        assert_eq!(candidates[1]["relationship"], "nested");
+        assert_eq!(candidates[1]["depth"], 1);
+        assert_eq!(candidates[1]["parent_candidate_identifier"], "candidate-1");
+        assert!(
+            candidates[0]["detail"]["transformations"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|item| item["identifier"] == "percent-decoding")
+        );
+        assert!(detailed_json.contains("fake-token"));
+        assert!(!detailed_json.contains("private-fragment"));
+        assert!(!detailed_json.contains("fake-user"));
+        assert!(!detailed_json.contains("fake-password"));
+        assert!(!detailed_json.contains("https://top.example"));
+    }
+
+    #[test]
+    fn disclosure_ambiguity_is_not_promoted_and_invalid_arguments_are_private() {
+        let input = concat!(
+            "https://social.example/?target=",
+            "tracking.example%2F%2Fpath%3Fadurl%3D%2F%2Fstorage.example%2Flanding"
+        );
+        let hostname_json = disclose_destinations_for_browser_json(input, "hostnames");
+        let hostname_value: Value = serde_json::from_str(&hostname_json).unwrap();
+        let ambiguities = hostname_value["disclosure"]["ambiguities"]
+            .as_array()
+            .unwrap();
+        assert_eq!(ambiguities.len(), 1);
+        assert!(
+            ambiguities[0]["explanation"]
+                .as_str()
+                .unwrap()
+                .contains("not classified as a destination")
+        );
+        assert!(ambiguities[0].get("top_level_parameter_position").is_none());
+        assert!(!hostname_json.contains("tracking.example"));
+
+        let invalid = disclose_destinations_for_browser_json(
+            "https://private.example/?token=fake-secret",
+            "everything-fake-secret",
+        );
+        let invalid_value: Value = serde_json::from_str(&invalid).unwrap();
+        assert_eq!(invalid_value["disclosure"], Value::Null);
+        assert_eq!(invalid_value["error"]["code"], "invalid-disclosure-level");
+        assert!(!invalid.contains("private.example"));
+        assert!(!invalid.contains("fake-secret"));
+        assert!(!invalid.contains("everything-fake-secret"));
     }
 
     #[test]

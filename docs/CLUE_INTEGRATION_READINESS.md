@@ -217,6 +217,33 @@ always-visible initial context questions, collapsed structural-findings
 disclosure, and visible assessment limitations all consume the existing
 validated report in browser memory.
 
+### Milestone 6.20 destination-disclosure boundary
+
+The default adapter path remains unchanged: `analyzeUrl` and `assessUrl` return
+browser wire schema 2 with consumer schema 1 and assessment contract 1, and no
+hostname or detailed evidence.
+
+The additive `discloseDestinations(input, level)` export returns a separate
+destination-disclosure browser wire schema 1 response. It reruns passive local
+analysis and calls the new purpose-specific core
+`create_destination_disclosure()` API rather than serializing the full
+`AnalysisReport` or detailed `ConsumerReport`.
+
+The core destination-disclosure contract is independently versioned at 1.
+`Hostnames` includes candidate identity, hostname, reference kind, depth and
+parent identity, plus fixed ambiguity explanations. `Detailed` additionally
+includes credential- and fragment-stripped submitted/normalized candidate representations,
+source parameter and positions, and bounded transformation metadata. It does
+not include the top-level input, unrelated parameter values, literal fragment
+text or arbitrary full-report serialization. Debug implementations redact
+candidate values.
+
+No existing schema advances because existing response shapes and meanings are
+unchanged. Incompatible changes to the disclosure response must advance its
+independent version. See
+[CLUE_DESTINATION_DISCLOSURE.md](CLUE_DESTINATION_DISCLOSURE.md) for the threat
+model and exact browser lifecycle.
+
 See [CLUE_ASSESSMENT.md](CLUE_ASSESSMENT.md) for rules, context, privacy, and
 resource bounds, and [FUTURE_INTELLIGENCE.md](FUTURE_INTELLIGENCE.md) for
 strictly future opt-in intelligence and isolated active-investigation planning.

@@ -1,7 +1,12 @@
-import initWasm, { analyzeUrl, assessUrl } from "./generated/linksleuth_wasm.js";
+import initWasm, {
+  analyzeUrl,
+  assessUrl,
+  discloseDestinations,
+} from "./generated/linksleuth_wasm.js";
 import {
   ContractError,
   validateBrowserResponse,
+  validateDestinationDisclosureResponse,
 } from "./contract.js";
 
 const INITIALIZATION_ERROR =
@@ -10,6 +15,8 @@ const CONTRACT_ERROR =
   "Clue received an incompatible local analysis response. Refresh the page or update the application.";
 const ANALYSIS_ERROR = "Clue could not complete local analysis. Try again.";
 const CONTEXT_ERROR = "Clue could not update the assessment from those answers.";
+const DISCLOSURE_ERROR =
+  "Clue could not prepare that local destination disclosure. Hide the evidence and try again.";
 
 const form = requiredElement("analysis-form");
 const input = requiredElement("url-input");
@@ -48,6 +55,14 @@ const clearContextButton = requiredElement("clear-context");
 const contextStatus = requiredElement("context-status");
 const supportingFindings = requiredElement("supporting-findings");
 const observationsSummary = requiredElement("observations-summary");
+const toggleDestinationHostnamesButton = requiredElement("toggle-destination-hostnames");
+const destinationHostnames = requiredElement("destination-hostnames");
+const destinationHostnameNotice = requiredElement("destination-hostname-notice");
+const destinationHostnameList = requiredElement("destination-hostname-list");
+const destinationAmbiguities = requiredElement("destination-ambiguities");
+const toggleDestinationDetailsButton = requiredElement("toggle-destination-details");
+const destinationDetails = requiredElement("destination-details");
+const destinationDisclosureStatus = requiredElement("destination-disclosure-status");
 const reviewSummaryButton = requiredElement("review-summary");
 const summaryReview = requiredElement("summary-review");
 const summaryHeading = requiredElement("summary-heading");
@@ -59,6 +74,7 @@ const includeContextSummary = requiredElement("include-context-summary");
 
 let currentReport = null;
 let preliminaryReport = null;
+let analyzedInput = null;
 let contextRevision = 0;
 const analyzerReady = initializeAnalyzer();
 
@@ -68,6 +84,8 @@ copySummaryButton.addEventListener("click", copySummary);
 closeSummaryButton.addEventListener("click", closeSummaryReview);
 showContextMoreButton.addEventListener("click", toggleAdditionalContext);
 clearContextButton.addEventListener("click", clearContext);
+toggleDestinationHostnamesButton.addEventListener("click", toggleDestinationHostnames);
+toggleDestinationDetailsButton.addEventListener("click", toggleDestinationDetails);
 includeContextSummary.addEventListener("change", refreshSummary);
 for (const control of [contextSource, contextPurpose, contextExpected, contextAction]) {
   control.addEventListener("change", updateAssessmentFromContext);
@@ -125,6 +143,7 @@ async function handleAnalysis(event) {
 
     currentReport = parsed;
     preliminaryReport = parsed;
+    analyzedInput = input.value;
     renderReport(parsed);
   } finally {
     analyzeButton.disabled = false;
@@ -284,6 +303,257 @@ function observationCountSummary(count) {
     return "Clue identified 1 structural observation.";
   }
   return `Clue identified ${count} structural observations.`;
+}
+
+async function toggleDestinationHostnames() {
+  if (toggleDestinationHostnamesButton.getAttribute("aria-expanded") === "true") {
+    clearDestinationDisclosure();
+    destinationDisclosureStatus.textContent =
+      "Potential destination hostnames and detailed evidence are hidden and removed from the page.";
+    return;
+  }
+
+  const disclosure = await requestDestinationDisclosure(
+    "hostnames",
+    toggleDestinationHostnamesButton,
+    "Revealing locally…",
+  );
+  if (disclosure === null) {
+    return;
+  }
+  renderDestinationHostnames(disclosure);
+  destinationHostnames.hidden = false;
+  toggleDestinationHostnamesButton.setAttribute("aria-expanded", "true");
+  toggleDestinationHostnamesButton.textContent = "Hide destination hostnames";
+  destinationDisclosureStatus.textContent =
+    disclosure.candidates.length === 1
+      ? "One potential destination hostname revealed locally."
+      : `${disclosure.candidates.length} potential destination hostnames revealed locally.`;
+}
+
+async function toggleDestinationDetails() {
+  if (toggleDestinationDetailsButton.getAttribute("aria-expanded") === "true") {
+    hideDestinationDetails();
+    destinationDisclosureStatus.textContent =
+      "Detailed destination evidence is hidden and removed from the page.";
+    return;
+  }
+
+  const disclosure = await requestDestinationDisclosure(
+    "detailed",
+    toggleDestinationDetailsButton,
+    "Preparing sensitive evidence…",
+  );
+  if (disclosure === null) {
+    return;
+  }
+  renderDestinationDetails(disclosure);
+  destinationDetails.hidden = false;
+  toggleDestinationDetailsButton.setAttribute("aria-expanded", "true");
+  toggleDestinationDetailsButton.textContent = "Hide detailed evidence";
+  destinationDisclosureStatus.textContent =
+    "Detailed destination evidence revealed locally. It may contain private link data.";
+}
+
+async function requestDestinationDisclosure(level, button, busyLabel) {
+  if (analyzedInput === null) {
+    destinationDisclosureStatus.textContent = DISCLOSURE_ERROR;
+    return null;
+  }
+  const restingLabel = button.textContent;
+  button.disabled = true;
+  button.textContent = busyLabel;
+  try {
+    const parsed = JSON.parse(discloseDestinations(analyzedInput, level));
+    validateDestinationDisclosureResponse(parsed, level);
+    if (parsed.error !== null) {
+      destinationDisclosureStatus.textContent = DISCLOSURE_ERROR;
+      return null;
+    }
+    return parsed.disclosure;
+  } catch {
+    destinationDisclosureStatus.textContent = DISCLOSURE_ERROR;
+    return null;
+  } finally {
+    button.disabled = false;
+    button.textContent = restingLabel;
+  }
+}
+
+function renderDestinationHostnames(disclosure) {
+  destinationHostnameList.replaceChildren();
+  destinationAmbiguities.replaceChildren();
+  destinationHostnameNotice.textContent = disclosure.notice;
+
+  if (disclosure.candidates.length === 0) {
+    const empty = createElement("p", "destination-empty");
+    empty.textContent =
+      "Clue couldn't identify a complete destination address from the supported structures it examined.";
+    destinationHostnameList.append(empty);
+  } else {
+    for (const candidate of disclosure.candidates) {
+      const card = createElement("article", "destination-card");
+      const identity = createElement("p", "destination-candidate-id");
+      identity.textContent = candidate.identifier;
+      const heading = createElement("h4");
+      const hostname = createElement("code", "destination-hostname");
+      hostname.textContent = candidate.hostname;
+      heading.append(hostname);
+      const metadata = createElement("dl", "destination-metadata");
+      appendDefinition(metadata, "Reference type", destinationKindLabel(candidate.reference_kind));
+      appendDefinition(
+        metadata,
+        "Relationship",
+        candidate.relationship === "direct"
+          ? "Direct candidate"
+          : `Nested candidate at depth ${candidate.depth}`,
+      );
+      if (candidate.parent_candidate_identifier !== null) {
+        appendDefinition(metadata, "Structurally nested in", candidate.parent_candidate_identifier);
+      }
+      const caution = createElement("p", "destination-caution");
+      caution.textContent = "Not visited or verified. This is inert text, not a link.";
+      card.append(identity, heading, metadata, caution);
+      destinationHostnameList.append(card);
+    }
+  }
+
+  if (disclosure.ambiguities.length > 0) {
+    const heading = createElement("h4");
+    heading.textContent = "Unclassified address-like material";
+    const intro = createElement("p");
+    intro.textContent =
+      "Part of this link resembles another address, but Clue couldn't identify it confidently.";
+    destinationAmbiguities.append(heading, intro);
+    for (const ambiguity of disclosure.ambiguities) {
+      const item = createElement("p", "destination-ambiguity");
+      item.textContent = ambiguity.explanation;
+      destinationAmbiguities.append(item);
+    }
+  }
+}
+
+function renderDestinationDetails(disclosure) {
+  destinationDetails.replaceChildren();
+  const warning = createElement("p", "detailed-evidence-warning");
+  warning.textContent = disclosure.notice;
+  destinationDetails.append(warning);
+
+  if (disclosure.candidates.length === 0) {
+    const empty = createElement("p", "destination-empty");
+    empty.textContent = "No supported candidate detail is available.";
+    destinationDetails.append(empty);
+  }
+
+  for (const candidate of disclosure.candidates) {
+    const card = createElement("article", "destination-detail-card");
+    const heading = createElement("h4");
+    heading.textContent = `${candidate.identifier}: ${candidate.hostname}`;
+    const metadata = createElement("dl", "destination-metadata destination-detail-metadata");
+    appendDefinition(metadata, "Classification", destinationKindLabel(candidate.reference_kind));
+    appendDefinition(
+      metadata,
+      "Provenance",
+      candidate.relationship === "direct"
+        ? "Direct candidate from the submitted link"
+        : `Structurally nested at depth ${candidate.depth}`,
+    );
+    if (candidate.parent_candidate_identifier !== null) {
+      appendDefinition(metadata, "Parent candidate", candidate.parent_candidate_identifier);
+    }
+    appendDefinition(metadata, "Source parameter", candidate.detail.source_parameter || "Unnamed");
+    appendDefinition(
+      metadata,
+      "Source positions",
+      `Top-level parameter ${candidate.detail.top_level_parameter_position}; immediate source parameter ${candidate.detail.source_parameter_position}`,
+    );
+
+    const submittedLabel = createElement("p", "destination-value-label");
+    submittedLabel.textContent =
+      "Classified submitted representation (credentials and fragment omitted)";
+    const submitted = createElement("code", "destination-reference");
+    submitted.textContent = candidate.detail.submitted_reference;
+    const normalizedLabel = createElement("p", "destination-value-label");
+    normalizedLabel.textContent =
+      "Normalized interpretation (credentials and fragment omitted)";
+    const normalized = createElement("code", "destination-reference");
+    normalized.textContent = candidate.detail.normalized_reference;
+
+    const transformationHeading = createElement("h5");
+    transformationHeading.textContent = "Supported transformation sequence";
+    const transformationList = createElement("ol", "destination-transformations");
+    if (candidate.detail.transformations.length === 0) {
+      const item = createElement("li");
+      item.textContent = "No decoding transformation was required.";
+      transformationList.append(item);
+    } else {
+      for (const transformation of candidate.detail.transformations) {
+        const item = createElement("li");
+        item.textContent = transformation.explanation;
+        transformationList.append(item);
+      }
+    }
+
+    card.append(
+      heading,
+      metadata,
+      submittedLabel,
+      submitted,
+      normalizedLabel,
+      normalized,
+      transformationHeading,
+      transformationList,
+    );
+    destinationDetails.append(card);
+  }
+
+  if (disclosure.ambiguities.length > 0) {
+    const ambiguitySection = createElement("section", "destination-detail-ambiguities");
+    const heading = createElement("h4");
+    heading.textContent = "Ambiguity and incomplete interpretation";
+    ambiguitySection.append(heading);
+    for (const ambiguity of disclosure.ambiguities) {
+      const item = createElement("p");
+      item.textContent = `${ambiguity.explanation} Source positions: top-level parameter ${ambiguity.top_level_parameter_position}, immediate source parameter ${ambiguity.source_parameter_position}.`;
+      ambiguitySection.append(item);
+    }
+    destinationDetails.append(ambiguitySection);
+  }
+}
+
+function clearDestinationDisclosure() {
+  hideDestinationDetails();
+  destinationHostnameList.replaceChildren();
+  destinationAmbiguities.replaceChildren();
+  destinationHostnameNotice.textContent = "";
+  destinationHostnames.hidden = true;
+  toggleDestinationHostnamesButton.setAttribute("aria-expanded", "false");
+  toggleDestinationHostnamesButton.textContent = "Reveal destination hostnames";
+}
+
+function hideDestinationDetails() {
+  destinationDetails.replaceChildren();
+  destinationDetails.hidden = true;
+  toggleDestinationDetailsButton.setAttribute("aria-expanded", "false");
+  toggleDestinationDetailsButton.textContent = "Reveal detailed evidence";
+}
+
+function destinationKindLabel(kind) {
+  const labels = {
+    "absolute-http": "Absolute HTTP reference",
+    "absolute-https": "Absolute HTTPS reference",
+    "protocol-relative": "Protocol-relative reference; no scheme was verified",
+    "hostname-first": "Hostname-first reference; no scheme was inferred",
+  };
+  return labels[kind] ?? "Unknown supported reference";
+}
+
+function appendDefinition(list, termText, valueText) {
+  const term = createElement("dt");
+  term.textContent = termText;
+  const value = createElement("dd");
+  value.textContent = valueText;
+  list.append(term, value);
 }
 
 function renderCompleteness(completeness) {
@@ -459,7 +729,7 @@ async function updateAssessmentFromContext() {
   const context = assessmentContext();
 
   try {
-    const parsed = JSON.parse(assessUrl(input.value, JSON.stringify(context)));
+    const parsed = JSON.parse(assessUrl(analyzedInput, JSON.stringify(context)));
     validateBrowserResponse(parsed);
     if (revision !== contextRevision) {
       return;
@@ -508,6 +778,7 @@ function clearContext() {
 function clearPreviousResult() {
   currentReport = null;
   preliminaryReport = null;
+  analyzedInput = null;
   contextRevision += 1;
   errorMessage.hidden = true;
   errorMessage.textContent = "";
@@ -531,10 +802,15 @@ function clearPreviousResult() {
   }
   supportingFindings.open = false;
   observationsSummary.textContent = "";
+  clearDestinationDisclosure();
+  destinationDisclosureStatus.textContent = "";
 }
 
 function showError(message) {
   currentReport = null;
+  preliminaryReport = null;
+  analyzedInput = null;
+  clearDestinationDisclosure();
   results.hidden = true;
   summaryReview.hidden = true;
   errorMessage.textContent = message;
