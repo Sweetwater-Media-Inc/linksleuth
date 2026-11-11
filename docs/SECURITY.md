@@ -46,6 +46,12 @@ Normal Clue responses still exclude candidate hostnames and detailed evidence. A
 
 Hiding evidence removes rendered DOM content and resets the UI; it does not securely erase WASM or JavaScript memory, developer-tool records, browser extension observations or screenshots. Evidence disclosure must not implicitly change review/copy summaries. Local Chromium tests reportedly observed zero analysis, reassessment or disclosure-triggered requests after initial assets loaded, but Firefox/WebKit, manual assistive-technology review and production CSP remain unverified. See [CLUE_DESTINATION_DISCLOSURE.md](CLUE_DESTINATION_DISCLOSURE.md).
 
+### Assessment quality and public-testing boundaries (Milestone 6.21)
+
+The expanded synthetic assessment quality corpus contains 36 new scenarios (65 assessment cases total), with no reported rule changes. This does not establish real-world phishing detection, sensitivity, or specificity: structurally simple deceptive links may produce no URL-derived warnings in the absence of context, while legitimate tracking links may warrant qualified caution. Avoid presenting an ordinary-looking URL as verified safe.
+
+Local Firefox and Chromium production-WASM checks passed, and six automated axe accessibility states reported no violations. WebKit could not navigate even to a plain localhost server in the tested environment, so WebKit Clue behaviour remains unverified. These automated checks do not replace manual assistive-technology testing, supervised usability studies, deployed CSP/security-header validation or a production privacy review. Clue remains suitable for local and supervised **synthetic-data** evaluation, not public launch; see [CLUE_PUBLIC_TESTING_READINESS.md](CLUE_PUBLIC_TESTING_READINESS.md).
+
 ## Engineering and testing expectations
 
 - Use synthetic adversarial URLs with distinctive fake secrets for regression tests.
