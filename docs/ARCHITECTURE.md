@@ -42,6 +42,12 @@ The ordinary Clue browser result remains privacy-reduced under browser wire sche
 
 The frontend renders disclosed evidence only through inert text and removes its nodes when hidden or when a new analysis begins. Hiding does not guarantee browser-memory erasure. Disclosures never change the privacy-reduced summary. The common responsive outer container is now 88rem for header, hero, analyzer, results and footer; detailed assessment reasons span below the primary 55/45 assessment/context layout. See [CLUE_DESTINATION_DISCLOSURE.md](CLUE_DESTINATION_DISCLOSURE.md) for the threat model.
 
+### Assessment quality and browser evaluation (Milestone 6.21)
+
+The assessment code and its deterministic decision rules remain unchanged. Thirty-six additional synthetic quality scenarios exercise evidence-family grouping, rule precedence, incomplete-analysis handling, unexpected/sensitive context and potentially excessive caution (65 assessment scenarios total, separate from 62 destination corpus cases). This is rule-regression evaluation rather than a measured phishing-detection rate. The hostname-only disclosure interface now presents **Possible destination found** with technical classifications and nesting/provenance behind an expandable control; disclosure contracts remain unchanged.
+
+The actual packaged WASM was exercised locally in Chromium and Firefox. WebKit failed on localhost HTTP navigation before Clue initialized, also reproducing against a plain test server; the cause remains an environment blocker and WebKit application compatibility is unverified. Six axe-checked UI states reported no violations, but automated results do not replace manual screen-reader testing. See [CLUE_PUBLIC_TESTING_READINESS.md](CLUE_PUBLIC_TESTING_READINESS.md).
+
 ## Important separations
 
 - **Parsing versus normalization:** parser-normalized paths must not replace original URL evidence.
