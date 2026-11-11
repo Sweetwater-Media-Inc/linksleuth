@@ -113,3 +113,25 @@ versioned:
 
 An incompatible change to either disclosure shape must advance its own version.
 It must not weaken the normal browser response's privacy guarantees.
+
+## Milestone 6.21 presentation levels
+
+The evidence contract is unchanged, but hostname disclosure now presents two
+language levels. The primary card says **Possible destination found**, makes
+the exact classified hostname prominent, and explains:
+
+> Clue identified this address inside the original link. It may be used as a
+> destination, but Clue cannot confirm that opening the link would take you
+> there.
+
+The candidate identifier, precise reference-kind label, direct/nested
+relationship, depth, and parent identifier are inside a per-candidate
+**Technical details** disclosure. This disclosure does not request more data;
+it reorganizes the already requested hostname-level response. The separate
+**Reveal detailed evidence** action is still required before candidate
+references, parameter provenance, source positions, or transformations enter
+the DOM.
+
+Hostnames remain inert text with meaningful spelling preserved. Candidate
+order, identity, parent relationship, reference kind, and ambiguity records
+are not altered by the common-language presentation.

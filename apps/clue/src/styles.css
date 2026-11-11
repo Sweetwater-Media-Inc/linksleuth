@@ -467,20 +467,6 @@ footer p {
   line-height: 1.55;
 }
 
-.assessment-category-explanation {
-  max-width: 56rem;
-  margin: 0.85rem 0 0;
-  color: var(--muted);
-  line-height: 1.5;
-}
-
-.assessment[data-category="no-clear-structural-warning-signs"]
-  .assessment-category-explanation,
-.assessment[data-category="unable-to-assess-reliably"]
-  .assessment-category-explanation {
-  color: var(--ink);
-}
-
 .assessment-next-steps {
   margin-top: 1.15rem;
 }
@@ -696,7 +682,7 @@ footer p {
   margin-bottom: 0;
 }
 
-.destination-candidate-id {
+.destination-card-label {
   margin: 0 0 0.35rem;
   color: var(--muted);
   font-size: 0.74rem;
@@ -714,7 +700,26 @@ footer p {
 }
 
 .destination-hostname {
-  font-size: 1rem;
+  font-size: 1.08rem;
+}
+
+.destination-plain-explanation {
+  margin: 0.75rem 0 0;
+  color: var(--ink);
+  line-height: 1.55;
+}
+
+.destination-technical {
+  margin-top: 0.9rem;
+  border-top: 1px solid #d7e1e9;
+  padding-top: 0.75rem;
+}
+
+.destination-technical summary {
+  width: fit-content;
+  color: var(--accent-dark);
+  font-weight: 750;
+  cursor: pointer;
 }
 
 .destination-metadata {

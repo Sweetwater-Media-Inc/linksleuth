@@ -39,7 +39,6 @@ const assessmentStatusLabel = requiredElement("assessment-status-label");
 const assessmentHeading = requiredElement("assessment-heading");
 const assessmentAction = requiredElement("assessment-action");
 const assessmentExplanation = requiredElement("assessment-explanation");
-const assessmentCategoryExplanation = requiredElement("assessment-category-explanation");
 const assessmentNextSteps = requiredElement("assessment-next-steps");
 const assessmentChange = requiredElement("assessment-change");
 const assessmentReasonsHeading = requiredElement("assessment-reasons-heading");
@@ -182,7 +181,6 @@ function renderAssessment(assessment, hasContext) {
   assessmentHeading.textContent = assessment.category_title;
   assessmentAction.textContent = assessment.action_title;
   assessmentExplanation.textContent = assessment.action_explanation;
-  assessmentCategoryExplanation.textContent = assessment.category_explanation;
   assessmentNextSteps.replaceChildren();
   for (const step of assessment.next_steps) {
     const item = createElement("li");
@@ -393,13 +391,22 @@ function renderDestinationHostnames(disclosure) {
   } else {
     for (const candidate of disclosure.candidates) {
       const card = createElement("article", "destination-card");
-      const identity = createElement("p", "destination-candidate-id");
-      identity.textContent = candidate.identifier;
+      const label = createElement("p", "destination-card-label");
+      label.textContent = "Possible destination found";
       const heading = createElement("h4");
       const hostname = createElement("code", "destination-hostname");
       hostname.textContent = candidate.hostname;
       heading.append(hostname);
+      const explanation = createElement("p", "destination-plain-explanation");
+      explanation.textContent =
+        "Clue identified this address inside the original link. It may be used as a destination, but Clue cannot confirm that opening the link would take you there.";
+      const caution = createElement("p", "destination-caution");
+      caution.textContent = "Not visited or verified. This is inert text, not a link.";
+      const technical = createElement("details", "destination-technical");
+      const technicalSummary = createElement("summary");
+      technicalSummary.textContent = "Technical details";
       const metadata = createElement("dl", "destination-metadata");
+      appendDefinition(metadata, "Candidate identifier", candidate.identifier);
       appendDefinition(metadata, "Reference type", destinationKindLabel(candidate.reference_kind));
       appendDefinition(
         metadata,
@@ -411,9 +418,8 @@ function renderDestinationHostnames(disclosure) {
       if (candidate.parent_candidate_identifier !== null) {
         appendDefinition(metadata, "Structurally nested in", candidate.parent_candidate_identifier);
       }
-      const caution = createElement("p", "destination-caution");
-      caution.textContent = "Not visited or verified. This is inert text, not a link.";
-      card.append(identity, heading, metadata, caution);
+      technical.append(technicalSummary, metadata);
+      card.append(label, heading, explanation, caution, technical);
       destinationHostnameList.append(card);
     }
   }

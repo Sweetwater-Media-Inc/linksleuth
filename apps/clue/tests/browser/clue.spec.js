@@ -167,7 +167,7 @@ test("shows the explicit non-verdict state when there are no observations", asyn
     "No clear structural warning signs",
   );
   await expect(page.locator("#assessment")).toContainText(
-    "This does not establish that the website is trustworthy or safe.",
+    "This is not evidence that the link is safe or trustworthy.",
   );
   await expect(
     page.getByText(
@@ -192,8 +192,8 @@ test("keeps unsupported original-path analysis separate from completed stages", 
     page.getByRole("heading", { name: "Clue cannot reliably assess this link." }),
   ).toBeVisible();
   await expect(page.locator("#assessment-heading")).toHaveText("Unable to assess reliably");
-  await expect(page.locator(".assessment-category-explanation")).toContainText(
-    "incomplete or unavailable",
+  await expect(page.locator("#assessment-explanation")).toContainText(
+    "could not reliably examine part of this link",
   );
   await expect(page.locator("#assessment-limitations")).toBeVisible();
   await expect(page.locator("#assessment-limitations")).toContainText(
@@ -301,8 +301,17 @@ test("reveals only hostname-level destination evidence after an explicit local a
   await expect(reveal).toHaveText("Hide destination hostnames");
   await expect(page.locator("#destination-hostname-list")).toContainText("storage.example");
   await expect(page.locator("#destination-hostname-list")).toContainText(
+    "Clue identified this address inside the original link",
+  );
+  await expect(
+    page.getByText("Protocol-relative reference; no scheme was verified", { exact: true }),
+  ).toBeHidden();
+  await expect(page.getByText("candidate-1", { exact: true })).toBeHidden();
+  await page.locator(".destination-technical > summary").first().click();
+  await expect(page.locator("#destination-hostname-list")).toContainText(
     "Protocol-relative reference; no scheme was verified",
   );
+  await expect(page.locator("#destination-hostname-list")).toContainText("candidate-1");
   await expect(page.locator("#destination-ambiguities")).toContainText(
     "couldn't identify it confidently",
   );

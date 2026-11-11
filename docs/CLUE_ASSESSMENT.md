@@ -158,3 +158,70 @@ consume only the privacy-reduced consumer report and never requests or uses a
 candidate hostname, reference, source parameter or transformation. Opening or
 closing either destination-disclosure level cannot change a recommendation.
 Assessment contract version 1 remains unchanged.
+
+## Milestone 6.21 rule inventory and quality audit
+
+The assessment engine was audited against its complete finite rule set. The
+identifiers below document implementation predicates; they do not add fields
+to assessment contract 1.
+
+| Rule or predicate | Inputs | Family / trigger | Category effect | Recommended-action effect | Relevant limitations | Main excessive-warning risk | Main false-reassurance risk |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `family.destination-transparency` | Absolute, protocol-relative, hostname-first, or nested destination observations | Any supported embedded candidate | At least caution | Known website or app, unless a higher-priority context action applies | Supported evidence only | Legitimate redirectors and analytics links receive caution | Candidate presence does not prove navigation or danger |
+| `family.layered-or-compound` | Supported normalization, Base64/HTML derivation, repeated percent transformation, encoded delimiter, or compound query | Any matching observation | At least caution | Independent verification unless another action has priority | Supported evidence only | Ordinary complex application links receive caution | Encoding is correlated structure, not intent |
+| `family.ambiguity` | Ambiguous hostname-first observation | Any unresolved supported ambiguity | At least caution | Independent verification unless another action has priority | Technical ambiguity unresolved | Benign malformed or unconventional syntax receives caution | Clue cannot safely repair or classify the possible address |
+| `family.analysis-incomplete` | Unsupported original path, incomplete discovery/encoding, percent limit, resource-limited/unsupported stage, or material non-traversal partial stage | Any incomplete supported analysis | `unable-to-assess-reliably`, with highest precedence | Seek additional information | Analysis incomplete | A limit can dominate otherwise ordinary structure | Missing evidence must never become a clean result |
+| `context.unexpected` | `expected_contact=unexpected` | Reported unexpected contact | At least caution | Verify sender, unless sensitive/strong/incomplete rules take precedence | Supported evidence only | An unexpected benign message receives caution | User answers are unverified and may be mistaken |
+| `context.unsure` | `expected_contact=unsure` | Reported uncertainty | At least caution | Independent verification | Supported evidence only | Uncertainty alone causes caution | Does not establish sender identity |
+| `context.sensitive-purpose` | Account, payment, or software purpose | Any matching purpose | At least caution | Independent verification unless another action has priority | Supported evidence only | Expected routine workflows still receive caution | A claimed purpose cannot establish legitimacy |
+| `context.sensitive-action` | Credentials, personal data, payment, or software action | Any matching requested action | At least caution | Avoid the sensitive action until verified | Supported evidence only | Legitimate requested actions remain cautious | A simple-looking URL cannot validate a sensitive request |
+| `strong.unexpected-sensitive-action` | Unexpected contact plus sensitive action | Both predicates true | `strong-warning-signs` | Do not open | Supported evidence only | Incorrect user context can over-warn | Independent context signals justify direct avoidance despite a simple URL |
+| `strong.unexpected-ambiguous-structure` | Unexpected contact, ambiguity, plus destination or layered structure | All predicates true | `strong-warning-signs` | Do not open | Technical ambiguity unresolved | Complex benign links in unexpected messages can over-warn | Ambiguity is not treated as a verified redirect |
+| `strong.sensitive-ambiguous-layered` | Sensitive action, ambiguity, and layered structure | All predicates true | `strong-warning-signs` | Do not open | Technical ambiguity unresolved | Legitimate complex sign-in flows can over-warn | Sensitive context plus independent structural concerns warrants avoidance |
+| `default.no-clear-warning` | No URL family, unexpected/unsure status, sensitive purpose, or sensitive action | No warning predicate true | `no-clear-structural-warning-signs` | Continue carefully | Supported evidence only; missing/partial context as applicable | None inherent | The qualified wording must not be read as a safety approval |
+
+Recommended-action precedence is: incomplete analysis, strong warning,
+sensitive action, unexpected contact, destination transparency, then general
+caution. Next steps are separately deduplicated and capped at three. An
+unexpected document request selects document-specific trusted-channel advice;
+sensitive requested actions select action-specific advice. These choices do
+not remove technical limitations.
+
+The audit found no contradictory outcomes, unreachable categories, hidden
+suppression of technical warnings by context, or escalation caused solely by
+duplicate correlated observations. Incomplete analysis correctly has higher
+precedence than otherwise clean structure. Expected contact does not suppress
+a URL family, resolve ambiguity, or establish safety. Ordinary URLs do not
+receive a strong warning unless the user reports both unexpected contact and a
+sensitive requested action.
+
+Two calibration risks remain. First, legitimate tracking, redirector, and
+deeply encoded application links can produce qualified caution; this is the
+main excessive-warning risk. Second, a structurally simple deceptive link can
+receive the no-clear category when no meaningful context is supplied; fixed
+non-safety wording and optional context mitigate but cannot eliminate this
+false-reassurance risk. No assessment rule was changed in Milestone 6.21
+because the expanded corpus exposed no reproducible contradiction or unsafe
+precedence defect.
+
+## Milestone 6.21 quality corpus
+
+`assessment_quality_cases.tsv` adds 36 synthetic, reviewable scenarios to the
+existing 29 regression cases. It records observations, typed context, expected
+category and action, principal reasons, important limitations, a quality focus
+(`false-reassurance`, `excessive-warning`, or `neither`), and a written
+rationale. The cases cover ordinary, suspicious-looking, ambiguous,
+incomplete, and adversarial structures. They use reserved synthetic domains
+and fabricated identifiers.
+
+The corpus test establishes **regression consistency** with documented
+judgments. The rationales are a **rule-quality judgment** based on evidence the
+tool actually has. They do not measure real-world phishing detection, and the
+corpus pass result must not be presented as an accuracy rate.
+
+The synthetic motivating fixture still begins at qualified caution. Reporting
+an unexpected email and document purpose produces the direct **Do not open
+this link** guidance with separately attributed URL and context reasons.
+Changing the report to expected contact returns it to qualified caution, not a
+safety approval; clearing context deterministically restores the preliminary
+assessment.

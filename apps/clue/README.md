@@ -126,11 +126,12 @@ npm test
 ```
 
 This builds production assets, runs Node contract/privacy tests, starts the
-production preview server, and runs Playwright against the real generated WASM
-in Chromium. Browser tests instrument requests and fail if analysis starts any
-request, including requests to synthetic submitted or candidate hostnames.
-Responsive assertions cover 390px mobile, 768px tablet, 1280px desktop, and
-1920px large-desktop layouts.
+production preview server, and runs the primary Playwright suite against the
+real generated WASM in Chromium. Browser tests instrument requests and fail if
+analysis starts any request, including requests to synthetic submitted or
+candidate hostnames. Responsive assertions cover 390px mobile, 768px tablet,
+1280px desktop, and 1920px large-desktop layouts. Automated axe checks cover
+six result and disclosure states.
 
 Individual commands are available when iterating:
 
@@ -139,7 +140,13 @@ npm run build:wasm
 npm run build
 npm run test:contract
 npm run test:browser
+npm run test:cross-browser
 ```
+
+The focused cross-browser command runs the actual production WASM workflow in
+Firefox and WebKit. It is separate from `npm test` so an unavailable optional
+engine does not hide the primary Chromium result. A browser-engine failure must
+still be reported rather than treated as a pass.
 
 ## Browser contract
 
@@ -192,7 +199,10 @@ prototype does not claim production hardening.
 
 ## Known limitations
 
-- Automated runtime coverage currently uses Chromium only.
+- The complete runtime suite uses Chromium. A focused production-WASM workflow
+  also passes locally in Firefox. Installed WebKit currently fails before Clue
+  code runs when navigating to any localhost HTTP server, so WebKit application
+  behavior remains unverified in this environment.
 - There is no persistence or analysis history. Explicit destination disclosure
   is local and read-only; it is not secure-memory isolation from browser tools,
   extensions, screenshots or the operating system.
@@ -200,5 +210,6 @@ prototype does not claim production hardening.
   fallback.
 - Browser tests verify local static assets and analysis network behavior, not a
   public hosting environment.
-- Accessibility uses semantic HTML and automated interaction coverage, but a
-  manual assistive-technology audit is still required before public release.
+- Accessibility uses semantic HTML, automated interaction coverage, and six
+  axe-checked states with no current violations, but a manual
+  assistive-technology audit is still required before public release.

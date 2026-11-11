@@ -138,3 +138,52 @@ test("stacks URL and context reason groups at a narrow viewport", async ({ page 
   expect(Math.abs(reasonBoxes[0].width - reasonBoxes[1].width)).toBeLessThan(2);
   await expectNoHorizontalOverflow(page);
 });
+
+test("keeps all warning states text-distinct and visually distinct at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await expect(page.getByText("Local analyzer ready")).toBeVisible();
+  const styles = new Map();
+
+  await analyze(page, "https://ordinary.example/content");
+  await expect(page.locator("#assessment-heading")).toHaveText(
+    "No clear structural warning signs",
+  );
+  styles.set(
+    "no-clear",
+    await page.locator("#assessment").evaluate((element) => getComputedStyle(element).borderLeftColor),
+  );
+
+  await analyze(
+    page,
+    "https://gateway.example/?target=https%3A%2F%2Fdestination.example%2Fcontent",
+  );
+  await expect(page.locator("#assessment-heading")).toHaveText("Proceed with caution");
+  styles.set(
+    "caution",
+    await page.locator("#assessment").evaluate((element) => getComputedStyle(element).borderLeftColor),
+  );
+
+  await page.getByRole("button", { name: "Show two more optional questions" }).click();
+  await page.getByLabel("Were you expecting this contact or request?").selectOption("unexpected");
+  await page
+    .getByLabel("What did the message or page ask you to do?")
+    .selectOption("enter-account-credentials");
+  await expect(page.locator("#assessment-heading")).toHaveText("Strong warning signs");
+  await expect(page.locator("#assessment-action")).toHaveText("Do not open this link");
+  styles.set(
+    "strong",
+    await page.locator("#assessment").evaluate((element) => getComputedStyle(element).borderLeftColor),
+  );
+
+  await analyze(page, "https:////gateway.example/path?category=books");
+  await expect(page.locator("#assessment-heading")).toHaveText("Unable to assess reliably");
+  styles.set(
+    "unable",
+    await page.locator("#assessment").evaluate((element) => getComputedStyle(element).borderLeftColor),
+  );
+
+  expect(new Set(styles.values()).size).toBe(4);
+  await expect(page.getByRole("heading", { name: "Safe", exact: true })).toHaveCount(0);
+  await expectNoHorizontalOverflow(page);
+});

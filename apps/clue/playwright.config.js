@@ -21,6 +21,16 @@ export default defineConfig({
       use: { ...devices["Pixel 5"] },
       testMatch: /responsive\.spec\.js/,
     },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
+      testMatch: /cross-browser\.spec\.js/,
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+      testMatch: /cross-browser\.spec\.js/,
+    },
   ],
   webServer: {
     command: "npm run preview",

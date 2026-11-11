@@ -4,8 +4,11 @@ use linksleuth_assessment::{
 };
 use linksleuth_core::analysis::analyze_url;
 use linksleuth_core::consumer::{ConsumerReportOptions, create_consumer_report};
+use linksleuth_core::destinations::MAX_DISCOVERED_DESTINATIONS;
+use std::collections::BTreeSet;
 
 const CORPUS: &str = include_str!("corpus/assessment_cases.tsv");
+const QUALITY_CORPUS: &str = include_str!("corpus/assessment_quality_cases.tsv");
 
 #[test]
 fn assessment_corpus_matches_expected_outcomes() {
@@ -53,6 +56,89 @@ fn assessment_corpus_matches_expected_outcomes() {
     }
 
     assert_eq!(count, 29);
+}
+
+#[test]
+fn assessment_quality_corpus_matches_structured_judgments() {
+    let mut count = 0;
+    let mut themes = BTreeSet::new();
+    let mut quality_focuses = BTreeSet::new();
+
+    for line in QUALITY_CORPUS.lines() {
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        count += 1;
+        let fields = line.split('\t').collect::<Vec<_>>();
+        assert_eq!(fields.len(), 14, "invalid quality corpus row: {line}");
+
+        let id = fields[0];
+        themes.insert(fields[1]);
+        quality_focuses.insert(fields[12]);
+        assert!(!fields[13].is_empty(), "quality rationale for {id}");
+
+        let input = expand_input(fields[2]);
+        let context = context(fields[3], fields[4], fields[5], fields[6]);
+        let analysis = analyze_url(&input)
+            .unwrap_or_else(|error| panic!("quality case {id} failed: {error:?}"));
+        let report = create_consumer_report(&analysis, ConsumerReportOptions::default());
+        let assessment = assess_link(&report, &context);
+
+        let observation_ids = report
+            .observations()
+            .iter()
+            .map(|observation| observation.kind().identifier())
+            .collect::<BTreeSet<_>>();
+        for expected in comma_separated(fields[7]) {
+            assert!(
+                observation_ids.contains(expected),
+                "principal observation {expected} missing for {id}: {observation_ids:?}"
+            );
+        }
+
+        assert_eq!(
+            assessment.category().identifier(),
+            fields[8],
+            "category for {id}"
+        );
+        assert_eq!(
+            assessment.recommended_action().identifier(),
+            fields[9],
+            "recommendation for {id}"
+        );
+        let reasons = assessment
+            .reasons()
+            .iter()
+            .map(|reason| reason.identifier())
+            .collect::<Vec<_>>();
+        assert_eq!(reasons, comma_separated(fields[10]), "reasons for {id}");
+        let limitations = assessment
+            .limitations()
+            .iter()
+            .map(|limitation| limitation.identifier())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            limitations,
+            comma_separated(fields[11]),
+            "limitations for {id}"
+        );
+    }
+
+    assert_eq!(count, 36);
+    assert_eq!(
+        themes,
+        BTreeSet::from([
+            "adversarial",
+            "ambiguous",
+            "incomplete",
+            "ordinary",
+            "suspicious"
+        ])
+    );
+    assert_eq!(
+        quality_focuses,
+        BTreeSet::from(["excessive-warning", "false-reassurance", "neither"])
+    );
 }
 
 #[test]
@@ -329,6 +415,118 @@ fn evidence_families_and_next_steps_are_deduplicated() {
     );
 }
 
+#[test]
+fn bounded_context_combinations_are_deterministic_and_all_categories_are_reachable() {
+    let reports = [
+        "https://ordinary.example/content",
+        "https://gateway.example/?target=https%3A%2F%2Fdestination.example%2Fcontent",
+        "https://gateway.example/?target=tracking.example%2F%2Fpath%3Fnext%3D%2F%2Fnested.example%2F",
+        "https:////gateway.example/path?category=books",
+    ]
+    .map(|input| {
+        let analysis = analyze_url(input).unwrap();
+        create_consumer_report(&analysis, ConsumerReportOptions::default())
+    });
+    let sources = [
+        None,
+        Some(LinkSource::Email),
+        Some(LinkSource::Message),
+        Some(LinkSource::SocialMedia),
+        Some(LinkSource::WebsiteOrSearch),
+        Some(LinkSource::QrCode),
+        Some(LinkSource::OtherOrUnknown),
+    ];
+    let purposes = [
+        None,
+        Some(ClaimedPurpose::Document),
+        Some(ClaimedPurpose::AccountSignInOrVerification),
+        Some(ClaimedPurpose::DeliveryOrShipping),
+        Some(ClaimedPurpose::PaymentOrFinancialRequest),
+        Some(ClaimedPurpose::OrdinaryContent),
+        Some(ClaimedPurpose::SoftwareDownloadOrInstall),
+        Some(ClaimedPurpose::OtherOrUnknown),
+    ];
+    let expectations = [
+        None,
+        Some(ExpectedContact::Expected),
+        Some(ExpectedContact::Unexpected),
+        Some(ExpectedContact::Unsure),
+    ];
+    let actions = [
+        None,
+        Some(RequestedAction::ViewContent),
+        Some(RequestedAction::EnterAccountCredentials),
+        Some(RequestedAction::ProvidePersonalInformation),
+        Some(RequestedAction::MakePayment),
+        Some(RequestedAction::DownloadOrInstallSoftware),
+        Some(RequestedAction::ContactSomeone),
+        Some(RequestedAction::OtherOrUnknown),
+    ];
+    let mut reached = BTreeSet::new();
+
+    for report in &reports {
+        for source in sources {
+            for purpose in purposes {
+                for expected in expectations {
+                    for action in actions {
+                        let context = build_context(source, purpose, expected, action);
+                        let first = assess_link(report, &context);
+                        let second = assess_link(report, &context);
+                        assert_eq!(first, second);
+                        reached.insert(first.category().identifier());
+                    }
+                }
+            }
+        }
+    }
+
+    assert_eq!(
+        reached,
+        BTreeSet::from([
+            "no-clear-structural-warning-signs",
+            "proceed-with-caution",
+            "strong-warning-signs",
+            "unable-to-assess-reliably",
+        ])
+    );
+}
+
+#[test]
+fn motivating_fixture_context_can_be_changed_and_cleared_without_implying_safety() {
+    let analysis = analyze_url(
+        "https://social.example/link/v2?aid=1988&scene=bio_url&target=tracking.example./%2Fpcs/click?fake-id%26amp%3B%26amp%3Badurl=%2F%2F%73%74%6F%72%61%67%65%2E%65%78%61%6D%70%6C%65%2Flanding.html#synthetic-fragment",
+    )
+    .unwrap();
+    let report = create_consumer_report(&analysis, ConsumerReportOptions::default());
+    let preliminary = assess_link(&report, &AssessmentContext::default());
+    let expected = assess_link(
+        &report,
+        &AssessmentContext::new()
+            .with_source(LinkSource::Email)
+            .with_claimed_purpose(ClaimedPurpose::Document)
+            .with_expected_contact(ExpectedContact::Expected)
+            .with_requested_action(RequestedAction::ViewContent),
+    );
+    let unexpected = assess_link(
+        &report,
+        &AssessmentContext::new()
+            .with_source(LinkSource::Email)
+            .with_claimed_purpose(ClaimedPurpose::Document)
+            .with_expected_contact(ExpectedContact::Unexpected)
+            .with_requested_action(RequestedAction::ViewContent),
+    );
+    let cleared = assess_link(&report, &AssessmentContext::default());
+
+    assert_eq!(expected.category(), AssessmentCategory::ProceedWithCaution);
+    assert_eq!(
+        unexpected.category(),
+        AssessmentCategory::StrongWarningSigns
+    );
+    assert_eq!(cleared, preliminary);
+    assert!(expected.category().explanation().contains("verification"));
+    assert!(!expected.category().explanation().contains("safe"));
+}
+
 fn context(source: &str, purpose: &str, expected: &str, action: &str) -> AssessmentContext {
     let mut context = AssessmentContext::new();
     if source != "-" {
@@ -377,20 +575,64 @@ fn context(source: &str, purpose: &str, expected: &str, action: &str) -> Assessm
     context
 }
 
-fn expand_input(input: &str) -> String {
-    if input != "@generate-depth-limit" {
-        return input.to_string();
+fn build_context(
+    source: Option<LinkSource>,
+    purpose: Option<ClaimedPurpose>,
+    expected: Option<ExpectedContact>,
+    action: Option<RequestedAction>,
+) -> AssessmentContext {
+    let mut context = AssessmentContext::new();
+    if let Some(source) = source {
+        context = context.with_source(source);
     }
+    if let Some(purpose) = purpose {
+        context = context.with_claimed_purpose(purpose);
+    }
+    if let Some(expected) = expected {
+        context = context.with_expected_contact(expected);
+    }
+    if let Some(action) = action {
+        context = context.with_requested_action(action);
+    }
+    context
+}
 
-    let mut nested = "https://level5.example/?tail=value".to_string();
-    for level in (1..=4).rev() {
-        nested = format!(
-            "https://level{level}.example/?next={}",
-            url::form_urlencoded::byte_serialize(nested.as_bytes()).collect::<String>()
-        );
+fn comma_separated(value: &str) -> Vec<&str> {
+    if value == "-" {
+        Vec::new()
+    } else {
+        value.split(',').collect()
     }
-    format!(
-        "https://top.example/?target={}",
-        url::form_urlencoded::byte_serialize(nested.as_bytes()).collect::<String>()
-    )
+}
+
+fn expand_input(input: &str) -> String {
+    match input {
+        "@generate-depth-limit" => {
+            let mut nested = "https://level5.example/?tail=value".to_string();
+            for level in (1..=4).rev() {
+                nested = format!(
+                    "https://level{level}.example/?next={}",
+                    percent_encode(&nested)
+                );
+            }
+            format!("https://top.example/?target={}", percent_encode(&nested))
+        }
+        "@generate-candidate-limit" => {
+            let query = (0..=MAX_DISCOVERED_DESTINATIONS)
+                .map(|index| {
+                    format!(
+                        "p{index}={}",
+                        percent_encode(&format!("https://host{index}.example/"))
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("&");
+            format!("https://top.example/?{query}")
+        }
+        _ => input.to_string(),
+    }
+}
+
+fn percent_encode(value: &str) -> String {
+    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
 }
