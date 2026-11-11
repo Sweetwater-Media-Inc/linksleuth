@@ -52,6 +52,14 @@ Clue now aligns header navigation, hero, analyzer, results and footer to one res
 
 **Potential destination evidence is opt-in.** The normal browser result stays privacy-reduced. Users must separately request candidate hostnames, then explicitly confirm before revealing detailed provenance and decoded candidate references. Neither disclosure navigates to or verifies a destination; evidence is inert text, not a link. Credentials and literal fragments are omitted from disclosed candidate representations, but **detailed query strings can still include sensitive tokens or identifiers**. Hiding a panel removes rendered nodes, not every copy in browser memory. Revealing evidence does not add it to the privacy-reduced copy/share summary. See [destination disclosure and threat model](docs/CLUE_DESTINATION_DISCLOSURE.md).
 
+### Assessment quality and testing status (Milestone 6.21)
+
+Clue's assessment rules were audited against 36 additional synthetic quality scenarios, bringing the assessment cases to **65** alongside **62** destination regression cases. No rule changes were indicated by those local tests; synthetic consistency does not establish phishing-detection accuracy. Hostname-only disclosure now foregrounds plain-language **Possible destination found** text, with precise classification and provenance under expandable technical details.
+
+Local verification reported **185 passing Rust tests**, **8 frontend contract/privacy tests** and **38 Chromium/mobile browser tests**, plus six axe-checked interface states with no automated violations. Production-WASM workflows also passed locally in Firefox. **WebKit remains unverified:** navigation to localhost failed with an internal error even against a plain HTTP test server, so this was recorded as an environment blocker, not an application pass or demonstrated application defect.
+
+Clue is suitable for local evaluation and a supervised **synthetic-data** usability study, **not public launch**. Manual screen-reader review, a nontechnical user study, WebKit verification in a working environment, production CSP/security headers, and hosting/privacy review remain open. See [public-testing readiness](docs/CLUE_PUBLIC_TESTING_READINESS.md), [manual accessibility checklist](docs/CLUE_MANUAL_ACCESSIBILITY_CHECKLIST.md) and [usability protocol](docs/CLUE_USABILITY_TESTING_PROTOCOL.md).
+
 ## Build and test
 
 Requires Git and a Rust toolchain supporting the Rust 2024 edition.
