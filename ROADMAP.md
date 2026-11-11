@@ -106,6 +106,16 @@ This is a living plan, not a promise of release dates. Completed items describe 
 - [x] Verify local Chromium disclosure/privacy/layout behaviour (reported: 182 Rust tests, 8 contract/privacy tests and 29 actual-WASM browser tests; no analysis-triggered network requests).
 - [ ] Manually review hostname and detailed disclosures with privacy-safe synthetic examples, and perform accessibility, Firefox/WebKit and production CSP checks before launch.
 
+## Milestone 6.21: assessment quality and public-testing readiness
+
+- [x] Audit the deterministic assessment-rule inventory and test false-reassurance / excessive-warning scenarios without changing unsupported claims into security verdicts.
+- [x] Add 36 synthetic assessment quality cases (65 total assessment scenarios) while retaining 62 destination regression cases; separate synthetic consistency from unmeasured real-world phishing accuracy.
+- [x] Improve hostname disclosure wording for ordinary users while retaining precise technical provenance under an expandable section.
+- [x] Extend actual-WASM browser verification to Firefox; document WebKit's localhost navigation failure as an environment blocker, not a verified application result.
+- [x] Add six automated axe accessibility states with no reported violations, plus manual accessibility and supervised synthetic-data usability testing plans.
+- [x] Produce [Clue public-testing readiness](docs/CLUE_PUBLIC_TESTING_READINESS.md): suitable for local and supervised synthetic-data evaluation, not public launch.
+- [ ] Complete manual screen-reader testing, 5–10 participant nontechnical usability study, WebKit validation in a working environment, deployed CSP/security-header validation and production privacy/security review.
+
 ## Development documentation
 
 - [x] Document Clue's actual Chromium/WASM prototype, browser test boundary and remaining deployment gaps (Milestone 6.16).
